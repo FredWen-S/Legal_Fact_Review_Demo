@@ -1,0 +1,112 @@
+enabled_risk_types:
+  - MISSING_FIELD
+  - INTERNAL_CONFLICT
+  - SOURCE_MISMATCH
+  - FORMAT_ERROR
+  - POSSIBLY_OUTDATED
+  - PLACEHOLDER_REMAINING
+  - EVIDENCE_REFERENCE_MISSING
+  - AMOUNT_INCONSISTENCY
+  - DATE_LOGIC_WARNING
+
+critical_fields:
+  - 当事人名称
+  - 法定代表人
+  - 地址
+  - 统一社会信用代码
+  - 案号
+
+placeholder_patterns:
+  - 待补充
+  - X{2,}
+  - x{2,}
+  - 某某
+  - 202X
+  - 20XX
+  - 【\s*】
+  - ____+
+
+severity_overrides:
+  PLACEHOLDER_REMAINING: high
+  EVIDENCE_REFERENCE_MISSING: high
+  AMOUNT_INCONSISTENCY: high
+  DATE_LOGIC_WARNING: medium
+  POSSIBLY_OUTDATED: low
+
+external_review_sources:
+  company_name:
+    sources:
+      - 企查查
+      - 国家企业信用信息公示系统
+      - 内部客户库
+    suggested_action: 建议人工复核主体名称是否为最新版，是否与统一社会信用代码匹配。
+  credit_code:
+    sources:
+      - 企查查
+      - 国家企业信用信息公示系统
+      - 内部数据库
+    suggested_action: 建议人工复核统一社会信用代码是否与主体名称一致。
+  id_number:
+    sources:
+      - 身份证件
+      - 委托材料
+      - 内部客户库
+    suggested_action: 建议人工复核身份证号是否与主体身份材料一致。
+  legal_representative:
+    sources:
+      - 企查查
+      - 国家企业信用信息公示系统
+      - 内部客户库
+    suggested_action: 建议人工复核法定代表人是否已变更。
+  address:
+    sources:
+      - 企查查
+      - 国家企业信用信息公示系统
+      - 内部客户库
+      - 合同台账
+    suggested_action: 建议人工复核住所地或联系地址是否为最新版。
+  case_number:
+    sources:
+      - 法院系统
+      - 律所案件台账
+      - 内部数据库
+    suggested_action: 建议人工复核案号格式和案件信息是否正确。
+  institution:
+    sources:
+      - 法院官网
+      - 仲裁机构官网
+      - 案件台账
+    suggested_action: 建议人工复核管辖机构名称是否准确。
+  amount:
+    sources:
+      - 合同
+      - 对账单
+      - 发票
+      - 财务台账
+      - 客户确认材料
+    suggested_action: 建议人工复核金额是否与基础材料、诉讼请求和事实部分一致。
+  date:
+    sources:
+      - 合同
+      - 补充协议
+      - 付款记录
+      - 送达记录
+      - 案件台账
+    suggested_action: 建议人工复核日期是否与基础材料和案件时间线一致。
+  evidence_no:
+    sources:
+      - 证据目录
+      - 附件清单
+      - 案件材料库
+    suggested_action: 建议人工复核证据编号是否存在，是否与证据目录一致。
+  contract_no:
+    sources:
+      - 合同原件
+      - 合同台账
+      - 内部数据库
+    suggested_action: 建议人工复核合同编号是否与原始合同一致。
+  placeholder:
+    sources:
+      - 文书模板
+      - 承办律师确认
+    suggested_action: 建议人工复核占位符是否应删除、补充或替换为正式内容。

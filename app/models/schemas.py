@@ -135,3 +135,74 @@ class EvidenceItem(BaseModel):
     evidence_name: str
     location: Optional[str] = None
     remark: Optional[str] = None
+
+
+class CaseWorkspace(BaseModel):
+    case_id: str
+    case_name: str
+    internal_case_no: Optional[str] = None
+    client_name: Optional[str] = None
+    counterparty_name: Optional[str] = None
+    case_type: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CaseDocument(BaseModel):
+    document_id: str
+    case_id: str
+    file_name: str
+    file_type: str
+    file_size: int
+    uploaded_at: datetime
+    document_role: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ReviewRunSummary(BaseModel):
+    review_id: str
+    case_id: Optional[str] = None
+    case_name: Optional[str] = None
+    document_id: Optional[str] = None
+    file_name: Optional[str] = None
+    mode_label: str = "完整复核模式"
+    finding_count: int
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    external_field_count: int = 0
+    manual_record_count: int = 0
+    config_version: Optional[str] = None
+    document_profile: Optional[str] = None
+    created_at: datetime
+
+
+class ReviewRunDetail(ReviewRunSummary):
+    findings: List[ReviewFinding] = Field(default_factory=list)
+    external_fields: List[ExtractedReviewField] = Field(default_factory=list)
+    manual_records: List[ManualReviewRecord] = Field(default_factory=list)
+
+
+class FieldDifference(BaseModel):
+    field_type: str
+    left_value: str
+    right_value: str
+    documents: str
+    suggested_action: str
+
+    @field_validator("suggested_action")
+    @classmethod
+    def difference_action_must_be_review_suggestion(cls, value: str) -> str:
+        if "建议人工复核" not in value:
+            raise ValueError("difference suggested_action must be phrased as a manual review suggestion")
+        return value
+
+
+class RuleConfigHistory(BaseModel):
+    config_history_id: int
+    config_version: str
+    saved_at: datetime
+    change_note: Optional[str] = None
+    backup_path: Optional[str] = None
+    active_config_path: str

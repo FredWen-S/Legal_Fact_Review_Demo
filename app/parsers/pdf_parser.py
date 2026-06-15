@@ -40,5 +40,5 @@ def parse_pdf(path: str | Path) -> list[TextChunk]:
     except Exception as exc:
         raise ParseError("PDF 解析失败。请确认上传的是未损坏、未加密且可复制文本的 PDF。") from exc
     if not chunks:
-        raise EmptyFileError("PDF 未解析到可复核文本。若文件为扫描版，请先 OCR 后再上传。")
+        raise EmptyFileError("PDF 未解析到可复核文本。若文件为扫描版，请在页面勾选 OCR 识别后重试，或先转换为可复制文字的 PDF。")
     return chunks

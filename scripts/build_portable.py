@@ -33,6 +33,7 @@ def build_portable(dist_root: str | Path = DEFAULT_DIST_ROOT) -> Path:
 
     _copy_tree(ROOT / "app", package_dir / "app")
     _copy_tree(ROOT / "scripts", package_dir / "scripts")
+    _copy_tree(ROOT / "docs", package_dir / "docs")
     _copy_tree(ROOT / ".streamlit", package_dir / ".streamlit")
     _copy_tree(ROOT / "app" / "sample_data", package_dir / "sample_data")
     wheelhouse = ROOT / "dist" / "wheelhouse"

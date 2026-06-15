@@ -11,6 +11,9 @@ def build_html_report(
     external_fields: list[ExtractedReviewField] | None = None,
     manual_records: list[ManualReviewRecord] | None = None,
     mode_label: str = "完整复核模式",
+    config_version: str | None = None,
+    document_profile: str | None = None,
+    config_updated_at: str | None = None,
 ) -> str:
     df = findings_to_dataframe(findings)
     table_html = df.to_html(index=False, escape=True)
@@ -41,11 +44,12 @@ def build_html_report(
   <h1>{html.escape("律师文书基础信息复核报告")}</h1>
   <p class="notice">本工具仅用于辅助复核，所有发现均为建议人工复核的线索，不构成法律意见，最终判断由人工完成。</p>
   <p><strong>当前模式：</strong>{html.escape(mode_label)}</p>
+  <p><strong>文书类型模板：</strong>{html.escape(document_profile or "未记录")}　<strong>规则配置版本：</strong>{html.escape(config_version or "未记录")}　<strong>配置更新时间：</strong>{html.escape(config_updated_at or "未记录")}</p>
   <p class="summary"><span>高风险：{high}</span><span>中风险：{medium}</span><span>低风险：{low}</span><span>总计：{len(findings)}</span></p>
   <h2>复核发现</h2>
   {table_html}
   <h2>待外部复核字段清单</h2>
-  <p class="notice">本清单仅基于当前文书自动抽取生成，用于提示人工复核，不代表系统已完成外部核验。</p>
+  <p class="notice">本清单仅基于当前文书自动抽取生成，用于提示人工复核，外部来源仍需人工核对。</p>
   {external_table_html}
   <h2>人工复核记录</h2>
   <p class="notice">人工复核记录由用户填写，用于形成工作底稿；状态为“需修改”时请重点查看人工确认值。</p>

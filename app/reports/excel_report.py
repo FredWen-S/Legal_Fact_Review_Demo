@@ -78,12 +78,24 @@ def build_excel_report(
     findings: list[ReviewFinding],
     external_fields: list[ExtractedReviewField] | None = None,
     manual_records: list[ManualReviewRecord] | None = None,
+    config_version: str | None = None,
+    document_profile: str | None = None,
+    config_updated_at: str | None = None,
 ) -> bytes:
     output = BytesIO()
     df = findings_to_dataframe(findings)
     external_df = external_fields_to_dataframe(external_fields or [])
     manual_df = manual_records_to_dataframe(manual_records or [])
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        meta_df = pd.DataFrame(
+            [
+                ("规则配置版本", config_version or ""),
+                ("文书类型模板", document_profile or ""),
+                ("规则配置更新时间", config_updated_at or ""),
+            ],
+            columns=["项目", "内容"],
+        )
+        meta_df.to_excel(writer, index=False, sheet_name="复核元数据")
         df.to_excel(writer, index=False, sheet_name="复核发现")
         external_df.to_excel(writer, index=False, sheet_name="待外部复核字段")
         manual_df.to_excel(writer, index=False, sheet_name="人工复核记录")

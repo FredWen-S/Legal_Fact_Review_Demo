@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 from datetime import datetime
+import hashlib
 from pathlib import Path
 import sys
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -19,10 +21,23 @@ FORBIDDEN_PARTS = {".git", ".venv", "__pycache__", ".pytest_cache"}
 FORBIDDEN_NAMES = {"review_runs.sqlite"}
 
 
+def normalize_version_suffix(version: str | None) -> str:
+    if not version:
+        return datetime.now().strftime("%Y%m%d")
+    suffix = version.strip()
+    if suffix.startswith("LegalFactReview_"):
+        suffix = suffix.removeprefix("LegalFactReview_")
+    if suffix.endswith(".zip"):
+        suffix = suffix.removesuffix(".zip")
+    if suffix.endswith("_windows_portable"):
+        return suffix
+    return f"{suffix}_windows_portable"
+
+
 def build_release_zip(version: str | None = None, dist_root: str | Path = DIST_ROOT) -> Path:
     dist_root = Path(dist_root)
     package_dir = build_portable(dist_root)
-    suffix = version or datetime.now().strftime("%Y%m%d")
+    suffix = normalize_version_suffix(version)
     zip_path = dist_root / f"LegalFactReview_{suffix}.zip"
     if zip_path.exists():
         zip_path.unlink()
@@ -38,6 +53,15 @@ def build_release_zip(version: str | None = None, dist_root: str | Path = DIST_R
     return zip_path
 
 
+def write_sha256_file(zip_path: str | Path) -> Path:
+    zip_path = Path(zip_path)
+    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    sha_path = zip_path.with_suffix(".sha256.txt")
+    sha_path.write_text(f"{digest}  {zip_path.name}\n", encoding="utf-8")
+    print(f"SHA256 generated: {sha_path}")
+    return sha_path
+
+
 def _should_exclude(path: Path) -> bool:
     parts = set(path.parts)
     if parts & FORBIDDEN_PARTS:
@@ -48,4 +72,9 @@ def _should_exclude(path: Path) -> bool:
 
 
 if __name__ == "__main__":
-    build_release_zip()
+    parser = argparse.ArgumentParser(description="Build Windows portable release ZIP.")
+    parser.add_argument("--version", help="Release version, for example v0.4.0-rc1")
+    parser.add_argument("--dist-root", default=str(DIST_ROOT), help="Output directory")
+    args = parser.parse_args()
+    archive = build_release_zip(version=args.version, dist_root=args.dist_root)
+    write_sha256_file(archive)

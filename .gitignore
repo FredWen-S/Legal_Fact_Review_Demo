@@ -6,6 +6,16 @@ __pycache__/
 venv/
 data/
 dist/
+exports/
+logs/
 build/
 *.spec
+*.log
 .DS_Store
+
+# Root-level release artifacts; canonical release docs live in docs/releases/.
+/LegalFactReview/
+/LegalFactReview_*.zip
+/RELEASE_NOTES_v*.md
+/RELEASE_CHECKLIST_v*.md
+/SHA256SUMS_v*.txt

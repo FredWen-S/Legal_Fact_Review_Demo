@@ -1,0 +1,67 @@
+config_version: case09-custom-v1
+updated_by: local_user
+enabled_risk_types:
+  - MISSING_FIELD
+  - INTERNAL_CONFLICT
+  - SOURCE_MISMATCH
+  - FORMAT_ERROR
+  - POSSIBLY_OUTDATED
+  - EVIDENCE_REFERENCE_MISSING
+  - AMOUNT_INCONSISTENCY
+  - DATE_LOGIC_WARNING
+critical_fields:
+  - 当事人名称
+  - 合同编号
+  - 金额
+placeholder_patterns:
+  - 待补充
+  - 【请律师确认】
+severity_mapping:
+  SOURCE_MISMATCH: medium
+  AMOUNT_INCONSISTENCY: high
+  EVIDENCE_REFERENCE_MISSING: high
+external_review_sources:
+  company_name:
+    sources: [企查查, 国家企业信用信息公示系统]
+    suggested_action: 建议人工复核主体名称是否与客户材料一致。
+  amount:
+    sources: [合同, 对账单]
+    suggested_action: 建议人工复核金额是否与合同和对账材料一致。
+  contract_number:
+    sources: [合同原件, 合同台账]
+    suggested_action: 建议人工复核合同编号是否与合同原件一致。
+  default:
+    sources: [基础材料]
+    suggested_action: 建议人工复核该字段是否与基础材料一致。
+document_profiles:
+  general:
+    display_name: 通用文书
+    required_fields: [party_name, case_number]
+  lawyer_letter:
+    display_name: 律师函
+    required_fields: [party_name, amount, contract_number]
+  contract_review:
+    display_name: 合同审查
+    required_fields: [party_name, contract_number, amount, date]
+field_dictionary:
+  party_name:
+    display_name: 主体名称
+    aliases: [委托人, 收函人, 甲方, 乙方]
+    regex_patterns: []
+    suggested_review_sources: [客户材料]
+    default_severity: high
+    required_by_default: true
+  contract_number:
+    display_name: 合同编号
+    aliases: [合同编号]
+    regex_patterns: []
+    suggested_review_sources: [合同原件]
+    default_severity: medium
+    required_by_default: true
+  amount:
+    display_name: 金额
+    aliases: [款项, 金额]
+    regex_patterns: ['(?:人民币)?[0-9][0-9,]*(?:\.\d+)?\s*元']
+    suggested_review_sources: [合同, 对账单]
+    default_severity: high
+    required_by_default: true

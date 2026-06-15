@@ -39,7 +39,7 @@ def build_external_review_fields(
     config: ReviewRulesConfig | None = None,
 ) -> list[ExtractedReviewField]:
     config = config or load_review_config()
-    extracted_items = extract_fields(chunks)
+    extracted_items = extract_fields(chunks, config=config)
     fields: list[ExtractedReviewField] = []
     for item in extracted_items:
         if item.field_name == "主体角色":

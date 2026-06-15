@@ -1,3 +1,6 @@
+config_version: default-v1
+updated_by: local_user
+
 enabled_risk_types:
   - MISSING_FIELD
   - INTERNAL_CONFLICT
@@ -26,7 +29,7 @@ placeholder_patterns:
   - 【\s*】
   - ____+
 
-severity_overrides:
+severity_mapping:
   PLACEHOLDER_REMAINING: high
   EVIDENCE_REFERENCE_MISSING: high
   AMOUNT_INCONSISTENCY: high
@@ -35,78 +38,117 @@ severity_overrides:
 
 external_review_sources:
   company_name:
-    sources:
-      - 企查查
-      - 国家企业信用信息公示系统
-      - 内部客户库
+    sources: [企查查, 国家企业信用信息公示系统, 内部客户库]
     suggested_action: 建议人工复核主体名称是否为最新版，是否与统一社会信用代码匹配。
   credit_code:
-    sources:
-      - 企查查
-      - 国家企业信用信息公示系统
-      - 内部数据库
+    sources: [企查查, 国家企业信用信息公示系统, 内部数据库]
     suggested_action: 建议人工复核统一社会信用代码是否与主体名称一致。
-  id_number:
-    sources:
-      - 身份证件
-      - 委托材料
-      - 内部客户库
-    suggested_action: 建议人工复核身份证号是否与主体身份材料一致。
   legal_representative:
-    sources:
-      - 企查查
-      - 国家企业信用信息公示系统
-      - 内部客户库
+    sources: [企查查, 国家企业信用信息公示系统, 内部客户库]
     suggested_action: 建议人工复核法定代表人是否已变更。
   address:
-    sources:
-      - 企查查
-      - 国家企业信用信息公示系统
-      - 内部客户库
-      - 合同台账
+    sources: [企查查, 国家企业信用信息公示系统, 内部客户库, 合同台账]
     suggested_action: 建议人工复核住所地或联系地址是否为最新版。
   case_number:
-    sources:
-      - 法院系统
-      - 律所案件台账
-      - 内部数据库
+    sources: [法院系统, 律所案件台账, 内部数据库]
     suggested_action: 建议人工复核案号格式和案件信息是否正确。
-  institution:
-    sources:
-      - 法院官网
-      - 仲裁机构官网
-      - 案件台账
+  court_or_arbitration:
+    sources: [法院官网, 仲裁机构官网, 案件台账]
     suggested_action: 建议人工复核管辖机构名称是否准确。
+  contract_number:
+    sources: [合同原件, 合同台账, 内部数据库]
+    suggested_action: 建议人工复核合同编号是否与原始合同一致。
   amount:
-    sources:
-      - 合同
-      - 对账单
-      - 发票
-      - 财务台账
-      - 客户确认材料
+    sources: [合同, 对账单, 发票, 财务台账, 客户确认材料]
     suggested_action: 建议人工复核金额是否与基础材料、诉讼请求和事实部分一致。
   date:
-    sources:
-      - 合同
-      - 补充协议
-      - 付款记录
-      - 送达记录
-      - 案件台账
+    sources: [合同, 补充协议, 付款记录, 送达记录, 案件台账]
     suggested_action: 建议人工复核日期是否与基础材料和案件时间线一致。
-  evidence_no:
-    sources:
-      - 证据目录
-      - 附件清单
-      - 案件材料库
+  evidence_number:
+    sources: [证据目录, 附件清单, 案件材料库]
     suggested_action: 建议人工复核证据编号是否存在，是否与证据目录一致。
-  contract_no:
-    sources:
-      - 合同原件
-      - 合同台账
-      - 内部数据库
-    suggested_action: 建议人工复核合同编号是否与原始合同一致。
+  attachment_number:
+    sources: [证据目录, 附件清单, 案件材料库]
+    suggested_action: 建议人工复核附件编号是否存在，是否与证据目录一致。
+  id_number:
+    sources: [身份证件, 委托材料, 内部客户库]
+    suggested_action: 建议人工复核身份证号是否与主体身份材料一致。
+  phone_number:
+    sources: [联系信息表, 委托材料, 内部客户库]
+    suggested_action: 建议人工复核手机号是否与授权材料一致。
   placeholder:
-    sources:
-      - 文书模板
-      - 承办律师确认
+    sources: [文书模板, 承办律师确认]
     suggested_action: 建议人工复核占位符是否应删除、补充或替换为正式内容。
+
+document_profiles:
+  general:
+    display_name: 通用文书
+    required_fields: [party_name, case_number, legal_representative, credit_code, address]
+  civil_complaint:
+    display_name: 民事起诉状
+    required_fields: [party_name, case_number, court_name, amount, evidence_number]
+    field_aliases:
+      party_name: [原告, 被告, 申请人, 被申请人]
+      amount: [诉讼请求, 欠款金额, 本金, 利息]
+    amount_keywords: [诉讼请求, 欠款, 本金, 利息]
+    date_keywords: [签署日期, 履行期限, 起诉日期]
+    evidence_keywords: [证据, 附件]
+  defense_statement:
+    display_name: 答辩状
+    required_fields: [party_name, case_number, court_name]
+  arbitration_application:
+    display_name: 仲裁申请书
+    required_fields: [party_name, amount, evidence_number]
+  contract_review:
+    display_name: 合同审查
+    required_fields: [party_name, contract_number, amount, date]
+  lawyer_letter:
+    display_name: 律师函
+    required_fields: [party_name, amount, date]
+  enforcement_application:
+    display_name: 执行申请书
+    required_fields: [party_name, case_number, amount]
+
+field_dictionary:
+  party_name:
+    display_name: 主体名称
+    aliases: [原告, 被告, 申请人, 被申请人, 甲方, 乙方]
+    regex_patterns: []
+    suggested_review_sources: [企查查, 国家企业信用信息公示系统]
+    default_severity: high
+    required_by_default: true
+  credit_code:
+    display_name: 统一社会信用代码
+    aliases: [统一社会信用代码, 信用代码]
+    regex_patterns: ['[0-9A-Z]{18}']
+    suggested_review_sources: [国家企业信用信息公示系统]
+    default_severity: high
+    required_by_default: true
+  legal_representative:
+    display_name: 法定代表人
+    aliases: [法定代表人, 法定代表]
+    regex_patterns: []
+    suggested_review_sources: [企查查]
+    default_severity: high
+    required_by_default: true
+  amount:
+    display_name: 金额
+    aliases: [金额, 货款, 本金, 利息]
+    regex_patterns: ['(?:人民币)?[0-9][0-9,]*(?:\.\d+)?\s*元']
+    suggested_review_sources: [合同, 对账单, 发票]
+    default_severity: high
+    required_by_default: false
+  date:
+    display_name: 日期
+    aliases: [日期, 签署日期, 履行期限]
+    regex_patterns: ['\d{4}年\d{1,2}月\d{1,2}日']
+    suggested_review_sources: [合同, 付款记录]
+    default_severity: medium
+    required_by_default: false
+  evidence_number:
+    display_name: 证据编号
+    aliases: [证据, 证据编号]
+    regex_patterns: []
+    suggested_review_sources: [证据目录]
+    default_severity: high
+    required_by_default: false

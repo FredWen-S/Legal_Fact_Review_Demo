@@ -17,7 +17,7 @@ from app.reports.excel_report import (
 from app.utils import mask_sensitive
 
 
-DISCLAIMER = "本报告仅基于上传文书及用户提供资料生成，用于辅助人工复核，不构成法律意见，不代表系统已完成外部核验，最终判断应由律师或相关人员完成。"
+DISCLAIMER = "本报告仅基于上传文书及用户提供资料生成，用于辅助人工复核，不构成法律意见；外部来源仍需人工核对，最终判断应由律师或相关人员完成。"
 
 
 def build_docx_report(
@@ -27,6 +27,9 @@ def build_docx_report(
     review_id: str | None = None,
     mode_label: str = "完整复核模式",
     generated_at: datetime | None = None,
+    config_version: str | None = None,
+    document_profile: str | None = None,
+    config_updated_at: str | None = None,
 ) -> bytes:
     generated_at = generated_at or datetime.now()
     external_fields = external_fields or []
@@ -48,6 +51,9 @@ def build_docx_report(
             ("review_id", review_id or "未记录"),
             ("生成时间", generated_at.strftime("%Y-%m-%d %H:%M:%S")),
             ("当前模式", mode_label),
+            ("文书类型模板", document_profile or "未记录"),
+            ("规则配置版本", config_version or "未记录"),
+            ("规则配置更新时间", config_updated_at or "未记录"),
             ("findings 总数", str(len(findings))),
             ("高 / 中 / 低风险数量", f"{high} / {medium} / {low}"),
             ("待外部复核字段数量", str(len(external_fields))),

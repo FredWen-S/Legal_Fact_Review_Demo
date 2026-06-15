@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.config.review_config import load_review_config
+from app.config.review_config import ReviewRulesConfig, load_review_config
 from app.models.schemas import BaseInfoItem, ExtractedItem, ReviewFinding
 from app.utils import normalize_text, stable_id
 
@@ -37,10 +37,15 @@ def check_source_mismatch(items: list[ExtractedItem], base_info: list[BaseInfoIt
     return _dedupe(findings)
 
 
-def check_missing_fields(items: list[ExtractedItem], base_info: list[BaseInfoItem]) -> list[ReviewFinding]:
+def check_missing_fields(
+    items: list[ExtractedItem],
+    base_info: list[BaseInfoItem],
+    config: ReviewRulesConfig | None = None,
+    document_profile: str | None = None,
+) -> list[ReviewFinding]:
     base_fields = {item.field_name for item in base_info}
-    config = load_review_config()
-    critical_fields = config.critical_fields or DEFAULT_CRITICAL_FIELDS
+    config = config or load_review_config()
+    critical_fields = config.critical_fields_for_profile(document_profile) or DEFAULT_CRITICAL_FIELDS
     findings: list[ReviewFinding] = []
     for field_name in critical_fields:
         if field_name in base_fields and not _candidate_items(field_name, items):

@@ -19,13 +19,13 @@ PATTERNS: dict[str, re.Pattern[str]] = {
     "附件编号": re.compile(r"附件\s*([一二三四五六七八九十\d]+)"),
 }
 
-def _placeholder_pattern() -> re.Pattern[str]:
-    config = load_review_config()
+def _placeholder_pattern(config=None) -> re.Pattern[str]:
+    config = config or load_review_config()
     patterns = config.placeholder_patterns or ["待补充", "X{2,}", "x{2,}", "某某", "202X", "20XX", r"【\s*】", "____+"]
     return re.compile("|".join(patterns))
 
 
-def extract_by_regex(chunks: list[TextChunk]) -> list[ExtractedItem]:
+def extract_by_regex(chunks: list[TextChunk], config=None) -> list[ExtractedItem]:
     items: list[ExtractedItem] = []
     for chunk in chunks:
         for field_name, pattern in PATTERNS.items():
@@ -40,7 +40,7 @@ def extract_by_regex(chunks: list[TextChunk]) -> list[ExtractedItem]:
                         context=chunk.text[:300],
                     )
                 )
-        for match in _placeholder_pattern().finditer(chunk.text):
+        for match in _placeholder_pattern(config).finditer(chunk.text):
             items.append(
                 ExtractedItem(
                     field_name="文书中的占位符",

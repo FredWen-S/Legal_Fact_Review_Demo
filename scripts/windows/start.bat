@@ -1,110 +1,132 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
+chcp 65001 >nul
+
 if exist "%~dp0app\main.py" (
     cd /d "%~dp0"
 ) else (
     cd /d "%~dp0..\.."
 )
 
-if not exist "logs" mkdir logs
+if not exist "logs" mkdir "logs"
+if not exist "data" mkdir "data"
+if not exist "exports" mkdir "exports"
+
 set "LOG_FILE=logs\startup.log"
 echo ===============================================>> "%LOG_FILE%"
-echo 启动时间：%date% %time%>> "%LOG_FILE%"
-echo 当前目录：%cd%>> "%LOG_FILE%"
+echo Start time: %date% %time%>> "%LOG_FILE%"
+echo Working dir: %cd%>> "%LOG_FILE%"
 
-echo.
-echo 律师文书基础信息与关键事实复核助手正在启动……
-echo 启动日志：%cd%\%LOG_FILE%
-echo.
+echo LegalFactReview is starting...
+echo Startup log: logs\startup.log
+set "PYTHONPATH=%CD%"
+echo PYTHONPATH: %PYTHONPATH%>> "%LOG_FILE%"
 
-where py >nul 2>nul
-if %errorlevel%==0 (
-    set "PYTHON_CMD=py -3"
-) else (
-    where python >nul 2>nul
-    if %errorlevel%==0 (
-        set "PYTHON_CMD=python"
-    ) else (
-        echo 未检测到 Python。
-        echo 请先安装 Python 3.10 或更高版本，并勾选 Add Python to PATH。
-        echo 下载地址：https://www.python.org/downloads/windows/
-        echo 错误：未检测到 Python。>> "%LOG_FILE%"
-        echo.
-        pause
-        exit /b 1
-    )
+set "PY_CMD="
+
+py -3.12 --version >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set "PY_CMD=py -3.12"
+    goto :found_python
 )
 
-%PYTHON_CMD% --version >> "%LOG_FILE%" 2>&1
-
-if not exist ".venv\Scripts\python.exe" (
-    echo 正在创建本地虚拟环境 .venv ...
-    echo 是否创建虚拟环境：是>> "%LOG_FILE%"
-    %PYTHON_CMD% -m venv .venv
-    if errorlevel 1 (
-        echo 创建虚拟环境失败。请确认 Python 版本为 3.10 或更高。
-        echo 错误：创建虚拟环境失败。>> "%LOG_FILE%"
-        pause
-        exit /b 1
-    )
-) else (
-    echo 是否创建虚拟环境：否>> "%LOG_FILE%"
+py -3.11 --version >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set "PY_CMD=py -3.11"
+    goto :found_python
 )
 
-if not exist "data" mkdir data
-if not exist "exports" mkdir exports
-if not exist "logs" mkdir logs
+py -3.10 --version >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set "PY_CMD=py -3.10"
+    goto :found_python
+)
 
-echo 正在执行启动前环境检查……
-".venv\Scripts\python.exe" scripts\windows\preflight_check.py >> "%LOG_FILE%" 2>&1
+python --version >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set "PY_CMD=python"
+    goto :found_python
+)
+
+echo Python 3.10-3.12 is required.
+echo Please install Python 3.11 or 3.12 and try again.
+echo ERROR: Python 3.10-3.12 was not found.>> "%LOG_FILE%"
+pause
+exit /b 1
+
+:found_python
+echo Using Python command: %PY_CMD%
+echo Python command: %PY_CMD%>> "%LOG_FILE%"
+%PY_CMD% --version >> "%LOG_FILE%" 2>&1
+%PY_CMD% "scripts\windows\preflight_check.py"
 if errorlevel 1 (
-    echo 启动前检查失败。请查看 logs\startup.log。
-    type "%LOG_FILE%"
+    echo Preflight check failed. See logs\startup.log
+    echo ERROR: preflight check failed.>> "%LOG_FILE%"
     pause
     exit /b 1
 )
 
-set /p PORT=<logs\current_port.txt
-if "%PORT%"=="" set "PORT=8501"
+set "PORT=8501"
+if exist "logs\current_port.txt" (
+    set /p PORT=<"logs\current_port.txt"
+)
 
-echo 正在安装或检查依赖，请稍候……
-if exist "wheelhouse" (
-    echo 检测到本地 wheelhouse，优先离线安装依赖。
-    echo 依赖安装方式：wheelhouse>> "%LOG_FILE%"
-    ".venv\Scripts\python.exe" -m pip install --no-index --find-links=wheelhouse -r requirements.txt >> "%LOG_FILE%" 2>&1
+if not "%PORT%"=="8501" (
+    echo Port 8501 is busy. Using http://localhost:%PORT%
+) else (
+    echo Using http://localhost:%PORT%
+)
+echo Port: %PORT%>> "%LOG_FILE%"
+
+if not exist ".venv\Scripts\python.exe" (
+    echo Creating virtual environment...
+    echo Create venv: yes>> "%LOG_FILE%"
+    %PY_CMD% -m venv ".venv"
     if errorlevel 1 (
-        echo 离线依赖安装失败。详情见 logs\startup.log。
-        choice /C YN /M "是否尝试联网安装依赖"
-        if errorlevel 2 (
-            echo 用户取消联网安装。>> "%LOG_FILE%"
-            pause
-            exit /b 1
-        )
-        echo 依赖安装方式：online fallback>> "%LOG_FILE%"
-        ".venv\Scripts\python.exe" -m pip install -r requirements.txt >> "%LOG_FILE%" 2>&1
+        echo Failed to create virtual environment.
+        echo ERROR: failed to create venv.>> "%LOG_FILE%"
+        pause
+        exit /b 1
+    )
+) else (
+    echo Create venv: no>> "%LOG_FILE%"
+)
+
+set "VENV_PY=.venv\Scripts\python.exe"
+
+if exist "wheelhouse" (
+    echo Installing dependencies from local wheelhouse...
+    echo Dependency mode: wheelhouse>> "%LOG_FILE%"
+    "%VENV_PY%" -m pip install --no-index --find-links="wheelhouse" -r "requirements.txt" >> "%LOG_FILE%" 2>&1
+    if errorlevel 1 (
+        echo Offline install failed.
+        echo Trying online install...
+        echo Dependency mode: online fallback>> "%LOG_FILE%"
+        "%VENV_PY%" -m pip install -r "requirements.txt" >> "%LOG_FILE%" 2>&1
         if errorlevel 1 (
-            echo 联网依赖安装仍然失败。请查看 logs\startup.log。
+            echo Dependency installation failed. See logs\startup.log
+            echo ERROR: dependency installation failed.>> "%LOG_FILE%"
             pause
             exit /b 1
         )
     )
 ) else (
-    echo 未检测到 wheelhouse，将联网安装依赖。
-    echo 依赖安装方式：online>> "%LOG_FILE%"
-    ".venv\Scripts\python.exe" -m pip install -r requirements.txt >> "%LOG_FILE%" 2>&1
+    echo Installing dependencies online...
+    echo Dependency mode: online>> "%LOG_FILE%"
+    "%VENV_PY%" -m pip install -r "requirements.txt" >> "%LOG_FILE%" 2>&1
     if errorlevel 1 (
-        echo 依赖安装失败。请检查网络连接，或联系技术人员预先构建 wheelhouse。
-        echo 错误：联网依赖安装失败。>> "%LOG_FILE%"
+        echo Dependency installation failed. See logs\startup.log
+        echo ERROR: dependency installation failed.>> "%LOG_FILE%"
         pause
         exit /b 1
     )
 )
 
-echo 浏览器地址：http://localhost:%PORT%
-echo 关闭本窗口即可停止服务。
-echo 使用端口：%PORT%>> "%LOG_FILE%"
-echo Streamlit 启动命令：.venv\Scripts\python.exe -m streamlit run app\main.py --server.port %PORT% --server.address localhost>> "%LOG_FILE%"
+echo Starting Streamlit...
+echo Open: http://localhost:%PORT%
+echo Streamlit command: %VENV_PY% -m streamlit run app\main.py --server.port %PORT% --server.address localhost>> "%LOG_FILE%"
 start "" "http://localhost:%PORT%"
-".venv\Scripts\python.exe" -m streamlit run app\main.py --server.port %PORT% --server.address localhost >> "%LOG_FILE%" 2>&1
+"%VENV_PY%" -m streamlit run "app\main.py" --server.port %PORT% --server.address localhost
 
+pause
 endlocal

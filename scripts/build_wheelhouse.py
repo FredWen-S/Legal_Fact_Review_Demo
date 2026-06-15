@@ -8,6 +8,7 @@ import argparse
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_WHEELHOUSE = ROOT / "dist" / "wheelhouse"
+SUPPORTED_PYTHON_TEXT = "Python 3.10-3.12"
 
 
 def build_wheelhouse(
@@ -15,6 +16,11 @@ def build_wheelhouse(
     wheelhouse_dir: str | Path = DEFAULT_WHEELHOUSE,
     dry_run: bool = False,
 ) -> list[str]:
+    """Build a wheelhouse for the current Python runtime.
+
+    The generated wheelhouse must match the target Python major/minor version
+    used by Windows portable users, for example cp311 wheels for Python 3.11.
+    """
     requirements_path = Path(requirements_path)
     wheelhouse_dir = Path(wheelhouse_dir)
     command = [
@@ -32,6 +38,8 @@ def build_wheelhouse(
     if not requirements_path.exists():
         raise FileNotFoundError(f"未找到 requirements.txt：{requirements_path}")
     wheelhouse_dir.mkdir(parents=True, exist_ok=True)
+    print(f"目标运行环境：{SUPPORTED_PYTHON_TEXT}。wheelhouse 必须与目标 Python 版本匹配。")
+    print(f"当前用于下载依赖的 Python：{sys.version.split()[0]}")
     print(f"正在下载离线依赖包到：{wheelhouse_dir}")
     try:
         subprocess.run(command, check=True)

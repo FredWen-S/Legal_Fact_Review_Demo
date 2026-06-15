@@ -22,7 +22,7 @@ from app.validators.source_compare_rules import (
 
 def review_single_document(chunks: list[TextChunk], config: ReviewRulesConfig | None = None) -> list[ReviewFinding]:
     config = config or load_review_config()
-    items = extract_fields(chunks)
+    items = extract_fields(chunks, config=config)
     findings: list[ReviewFinding] = []
     findings.extend(check_placeholders(items))
     findings.extend(check_format_errors(items, chunks))
@@ -43,9 +43,10 @@ def review_document(
     base_info: list[BaseInfoItem],
     evidence_index: list[EvidenceItem],
     config: ReviewRulesConfig | None = None,
+    document_profile: str | None = None,
 ) -> list[ReviewFinding]:
     config = config or load_review_config()
-    items = extract_fields(chunks)
+    items = extract_fields(chunks, config=config)
     findings: list[ReviewFinding] = []
     findings.extend(check_placeholders(items))
     findings.extend(check_format_errors(items, chunks))
@@ -54,7 +55,7 @@ def review_document(
     findings.extend(check_amount_inconsistency(items))
     findings.extend(check_date_logic(items))
     findings.extend(check_source_mismatch(items, base_info))
-    findings.extend(check_missing_fields(items, base_info))
+    findings.extend(check_missing_fields(items, base_info, config=config, document_profile=document_profile))
     findings.extend(check_possibly_outdated(items, base_info))
     findings.extend(check_evidence_references(items, evidence_index))
     enabled_findings = [finding for finding in findings if config.risk_enabled(finding.risk_type)]

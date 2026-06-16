@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+if __name__ == "__main__":
+    from scripts.python_selector import reexec_with_supported_python_if_needed
+
+    reexec_with_supported_python_if_needed(Path(__file__), sys.argv[1:])
+
 from app.parsers.docx_parser import parse_docx
 from app.parsers.excel_parser import parse_base_info, parse_evidence_index
 from app.extractors.external_review_fields import build_external_review_fields
@@ -34,6 +39,7 @@ from scripts.build_release_zip import build_release_zip
 from scripts.build_desktop_release import build_desktop_release
 from scripts.generate_test_files import generate_test_files
 from scripts.windows.preflight_check import run_preflight
+from scripts.python_selector import find_supported_python, reexec_with_supported_python_if_needed
 from app.reports.case_package import build_case_review_package_zip
 from app.reports.docx_annotation import ANNOTATION_DISCLAIMER, build_annotated_docx
 from app.config.review_config import default_config, export_config, import_config_file, load_review_config, load_review_config_with_status, restore_default_config
@@ -48,7 +54,12 @@ from app.extractors.field_extractor import extract_fields
 SAMPLE_DIR = ROOT / "app" / "sample_data"
 
 
-def main() -> None:
+def main(python_command: list[str] | tuple[str, ...] | None = None) -> None:
+    python = find_supported_python()
+    selected_python_command = list(python_command or python.command)
+    print(f"Using Python: {' '.join(selected_python_command)}")
+    print(f"Python version: {python.version}")
+
     document = SAMPLE_DIR / "sample_document.docx"
     base_info = SAMPLE_DIR / "sample_base_info.xlsx"
     evidence = SAMPLE_DIR / "sample_evidence_index.xlsx"
@@ -396,7 +407,7 @@ def main() -> None:
             raise SystemExit("portable 包包含用户数据或缓存文件")
 
     desktop_status = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "desktop_service.py"), "status", "--root", str(ROOT)],
+        [*selected_python_command, str(ROOT / "scripts" / "desktop_service.py"), "status", "--root", str(ROOT)],
         capture_output=True,
         text=True,
         check=False,

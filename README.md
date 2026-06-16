@@ -492,3 +492,23 @@ portable 包会生成在 `dist/LegalFactReview/`。构建脚本不会打包 `.gi
 - 增加规则配置页面，让律所按业务类型维护字段规则。
 - 增加本地大模型抽取选项，并提供严格的脱敏和审计机制。
 - 增加批量复核、版本对比、审查留痕和权限控制。
+
+## v0.5.0-rc1 发布验证 Python 要求
+
+发布验证必须使用 Python 3.10-3.12，推荐 Python 3.12。不要直接信任系统默认 `python`；如果默认 `python` 指向 Python 3.13，请不要直接运行 `python -m pytest` 或 `python scripts/acceptance_check.py`。
+
+推荐命令：
+
+```bash
+py -3.12 -m pytest -q
+py -3.12 scripts/acceptance_check.py
+py -3.12 scripts/build_desktop_release.py
+```
+
+也可以统一运行：
+
+```bash
+py -3.12 scripts/verify_release.py
+```
+
+`scripts/verify_release.py` 和发布构建脚本会按 `py -3.12`、`py -3.11`、`py -3.10`、最后 `python` 的顺序选择解释器；如果只找到 Python 3.13，会失败并提示安装 Python 3.10-3.12。

@@ -1,19 +1,40 @@
 from __future__ import annotations
 
-import shutil
 import hashlib
+import shutil
+import sys
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.python_selector import find_supported_python
+
+
 DIST_ROOT = ROOT / "dist"
 PACKAGE_NAME = "LegalFactReview_v0.5.0-rc1_desktop"
-EXCLUDED_DIR_NAMES = {".git", ".venv", "__pycache__", ".pytest_cache", "data", "exports", "logs", "dist", "node_modules", "target"}
+EXCLUDED_DIR_NAMES = {
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    "data",
+    "exports",
+    "logs",
+    "dist",
+    "node_modules",
+    "target",
+}
 EXCLUDED_FILE_NAMES = {"review_runs.sqlite"}
 
 
 def build_desktop_release(dist_root: str | Path = DIST_ROOT) -> Path:
+    python = find_supported_python()
+    print(f"Using Python: {python.display_command}")
+    print(f"Python version: {python.version}")
     dist_root = Path(dist_root)
     package_dir = dist_root / PACKAGE_NAME
     staging_dir = dist_root / f".{PACKAGE_NAME}_staging"
@@ -24,6 +45,7 @@ def build_desktop_release(dist_root: str | Path = DIST_ROOT) -> Path:
     for dirname in ["app", "scripts", "docs", "desktop"]:
         _copy_tree(ROOT / dirname, staging_dir / dirname)
     _copy_tree(ROOT / ".streamlit", staging_dir / ".streamlit")
+
     for filename in [
         "requirements.txt",
         "requirements-ocr.txt",

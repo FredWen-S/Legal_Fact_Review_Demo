@@ -66,3 +66,14 @@
 - [ ] 桌面壳停止服务成功。
 - [ ] data / exports / logs 目录可打开。
 - [ ] 日志能辅助定位启动失败原因。
+
+## Python 版本与发布验证
+
+- [ ] 发布验证机器安装 Python 3.12，或至少安装 Python 3.10-3.12。
+- [ ] 系统默认 `python` 若指向 Python 3.13，不直接使用 `python -m pytest` 做发布验证。
+- [ ] `py -3.12 -m pytest -q` 通过。
+- [ ] `py -3.12 scripts/acceptance_check.py` 通过。
+- [ ] `py -3.12 scripts/build_desktop_release.py` 通过。
+- [ ] 或统一执行 `py -3.12 scripts/verify_release.py` 通过。
+- [ ] `scripts/python_selector.py` 按 `py -3.12`、`py -3.11`、`py -3.10`、`python` 顺序选择解释器。
+- [ ] 只有 Python 3.13 时，验证脚本给出“未找到受支持的 Python 版本。请安装 Python 3.10-3.12，推荐 Python 3.12。”。

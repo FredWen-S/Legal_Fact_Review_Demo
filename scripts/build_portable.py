@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.python_selector import find_supported_python
+
+
 DEFAULT_DIST_ROOT = ROOT / "dist"
 PACKAGE_NAME = "LegalFactReview"
 
@@ -25,6 +32,9 @@ EXCLUDED_FILE_NAMES = {
 
 
 def build_portable(dist_root: str | Path = DEFAULT_DIST_ROOT) -> Path:
+    python = find_supported_python()
+    print(f"Using Python: {python.display_command}")
+    print(f"Python version: {python.version}")
     dist_root = Path(dist_root)
     package_dir = dist_root / PACKAGE_NAME
     if package_dir.exists():

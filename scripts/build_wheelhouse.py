@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
-import argparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.python_selector import find_supported_python
+
+
 DEFAULT_WHEELHOUSE = ROOT / "dist" / "wheelhouse"
 SUPPORTED_PYTHON_TEXT = "Python 3.10-3.12"
+PREFERRED_RELEASE_PYTHON_TEXT = "Python 3.12"
 
 
 def build_wheelhouse(
@@ -16,15 +23,12 @@ def build_wheelhouse(
     wheelhouse_dir: str | Path = DEFAULT_WHEELHOUSE,
     dry_run: bool = False,
 ) -> list[str]:
-    """Build a wheelhouse for the current Python runtime.
-
-    The generated wheelhouse must match the target Python major/minor version
-    used by Windows portable users, for example cp311 wheels for Python 3.11.
-    """
+    """Build a wheelhouse with a supported release Python runtime."""
     requirements_path = Path(requirements_path)
     wheelhouse_dir = Path(wheelhouse_dir)
+    python = find_supported_python()
     command = [
-        sys.executable,
+        *python.command,
         "-m",
         "pip",
         "download",
@@ -38,8 +42,9 @@ def build_wheelhouse(
     if not requirements_path.exists():
         raise FileNotFoundError(f"未找到 requirements.txt：{requirements_path}")
     wheelhouse_dir.mkdir(parents=True, exist_ok=True)
-    print(f"目标运行环境：{SUPPORTED_PYTHON_TEXT}。wheelhouse 必须与目标 Python 版本匹配。")
-    print(f"当前用于下载依赖的 Python：{sys.version.split()[0]}")
+    print(f"目标运行环境：{SUPPORTED_PYTHON_TEXT}，推荐 {PREFERRED_RELEASE_PYTHON_TEXT}。")
+    print(f"Using Python: {python.display_command}")
+    print(f"Python version: {python.version}")
     print(f"正在下载离线依赖包到：{wheelhouse_dir}")
     try:
         subprocess.run(command, check=True)

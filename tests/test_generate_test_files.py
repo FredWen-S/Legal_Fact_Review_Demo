@@ -8,13 +8,14 @@ import fitz
 from docx import Document
 from openpyxl import load_workbook
 
+import scripts.acceptance_check as acceptance_check
 from app.extractors.external_review_fields import build_external_review_fields
 from app.parsers.docx_parser import parse_docx
 from app.parsers.excel_parser import parse_base_info, parse_evidence_index
 from app.parsers.pdf_parser import is_scanned_pdf, parse_pdf
 from app.review_engine import review_document, review_single_document
 from scripts.generate_test_files import TEST_CASES_DIR, generate_test_files
-from scripts.acceptance_check import main as acceptance_main
+from scripts.python_selector import PythonCandidate
 
 
 def test_generate_test_files_creates_expected_cases(tmp_path: Path):
@@ -107,13 +108,34 @@ def test_generated_test_files_do_not_contain_real_sensitive_patterns(tmp_path: P
     assert not re.search(r"(?<!\d)1[3-9]\d{9}(?!\d)", text)
 
 
-def test_acceptance_check_does_not_modify_tracked_sample_data():
+def test_acceptance_check_does_not_modify_tracked_sample_data(monkeypatch):
     before = _directory_hashes(TEST_CASES_DIR)
+    monkeypatch.setattr(
+        acceptance_check,
+        "find_supported_python",
+        lambda: PythonCandidate(("python",), "3.12.13", "C:/Python312/python.exe"),
+    )
+    def fake_preflight(root: Path) -> int:
+        logs_dir = Path(root) / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        (logs_dir / "current_port.txt").write_text("8501", encoding="utf-8")
+        return 8501
 
-    acceptance_main()
+    monkeypatch.setattr(acceptance_check, "run_preflight", fake_preflight)
+
+    acceptance_check.main(python_command=("python",))
 
     after = _directory_hashes(TEST_CASES_DIR)
     assert after == before
+
+
+def test_acceptance_check_uses_python_selector_for_subprocesses():
+    source = (Path(__file__).resolve().parents[1] / "scripts" / "acceptance_check.py").read_text(encoding="utf-8")
+
+    assert "find_supported_python" in source
+    assert "reexec_with_supported_python_if_needed" in source
+    assert "selected_python_command" in source
+    assert "[sys.executable, str(ROOT / \"scripts\" / \"desktop_service.py\")" not in source
 
 
 def _extract_text(path: Path) -> str:

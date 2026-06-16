@@ -74,13 +74,17 @@ strong[data-status="error"] {
   color: #b91c1c;
 }
 
+strong[data-status="stopped"] {
+  color: #64748b;
+}
+
 code {
   word-break: break-all;
 }
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -113,20 +117,36 @@ button.primary {
   color: #b91c1c;
 }
 
-.message {
-  min-height: 48px;
+.feedback-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   margin-bottom: 14px;
+}
+
+.message {
+  min-height: 88px;
   color: #475569;
 }
 
-.message:empty {
-  display: none;
+.message h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
 }
 
-.message.error {
+.message p {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-panel {
   border-color: #fecaca;
   background: #fff1f2;
   color: #991b1b;
+}
+
+#error-text:empty::before {
+  content: "暂无错误";
 }
 
 .logs-title {
@@ -161,7 +181,8 @@ pre {
 
 @media (max-width: 760px) {
   .status-panel,
-  .actions {
+  .actions,
+  .feedback-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -193,3 +193,23 @@ data/review_runs.sqlite
 ### 是否能完成最终判断？
 
 不能。本工具只做辅助复核和工作底稿整理，不构成法律意见，最终判断由律师或相关人员完成。
+
+## 发布验证 Python 要求
+
+v0.5.0-rc1 发布验证请使用 Python 3.12。若系统默认 `python` 是 Python 3.13，请不要直接运行 `python -m pytest`。
+
+推荐命令：
+
+```bash
+py -3.12 -m pytest -q
+py -3.12 scripts/acceptance_check.py
+py -3.12 scripts/build_desktop_release.py
+```
+
+统一验证命令：
+
+```bash
+py -3.12 scripts/verify_release.py
+```
+
+验证脚本会优先选择 `py -3.12`，其次 `py -3.11`、`py -3.10`，最后才检查 `python`；Python 3.13 会被拒绝。

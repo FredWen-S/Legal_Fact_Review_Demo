@@ -5,50 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>律师文书基础信息与关键事实复核助手</title>
     <link rel="stylesheet" href="/src/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "@tauri-apps/api/": "/@tauri-apps/api/"
+        }
+      }
+    </script>
   </head>
   <body>
     <main class="shell">
       <section class="header">
         <p class="eyebrow">LegalFactReview Desktop</p>
         <h1>律师文书基础信息与关键事实复核助手</h1>
-        <p>桌面壳用于启动本地 Python / Streamlit 服务。复核逻辑仍在本机运行。</p>
+        <p>桌面壳用于启动本地 Python / Streamlit 服务，复核业务逻辑仍在本机运行。</p>
       </section>
 
-      <section class="status-panel">
+      <section class="status-panel" aria-label="服务状态">
         <div>
-          <span class="label">当前状态</span>
-          <strong id="statusText">未启动</strong>
+          <span class="label">服务状态</span>
+          <strong id="status-text" data-status="stopped">未启动</strong>
         </div>
         <div>
           <span class="label">服务地址</span>
-          <code id="urlText">-</code>
+          <code id="url-text">-</code>
         </div>
         <div>
           <span class="label">PID</span>
-          <code id="pidText">-</code>
+          <code id="pid-text">-</code>
         </div>
       </section>
 
-      <section class="actions">
-        <button id="startBtn">启动本地服务</button>
-        <button id="openBtn">打开复核界面</button>
-        <button id="stopBtn">停止本地服务</button>
-        <button id="dataBtn">打开 data 目录</button>
-        <button id="exportsBtn">打开 exports 目录</button>
-        <button id="logsBtn">打开 logs 目录</button>
+      <section class="actions" aria-label="桌面操作">
+        <button id="btn-status" type="button">刷新状态</button>
+        <button id="btn-start" type="button">启动服务</button>
+        <button id="btn-stop" type="button">停止服务</button>
+        <button id="btn-open-review" type="button">打开复核界面</button>
+        <button id="btn-open-data" type="button">打开 data 目录</button>
+        <button id="btn-open-exports" type="button">打开 exports 目录</button>
+        <button id="btn-open-logs" type="button">打开 logs 目录</button>
+        <button id="btn-refresh-logs" type="button">查看日志</button>
       </section>
 
-      <section class="message" id="messageBox"></section>
+      <section class="feedback-grid">
+        <div class="message">
+          <h2>最近一次操作结果</h2>
+          <p id="result-text">等待操作</p>
+        </div>
+        <div class="message error-panel">
+          <h2>错误信息</h2>
+          <p id="error-text">暂无错误</p>
+        </div>
+      </section>
 
       <section class="logs">
         <div class="logs-title">
-          <h2>最近日志</h2>
-          <div class="logs-actions">
-            <button id="viewLogsBtn">查看日志</button>
-            <button id="refreshBtn">刷新状态</button>
-          </div>
+          <h2>日志</h2>
         </div>
-        <pre id="logText">暂无日志。</pre>
+        <pre id="log-text">暂无日志</pre>
       </section>
     </main>
     <script type="module" src="/src/main.js"></script>

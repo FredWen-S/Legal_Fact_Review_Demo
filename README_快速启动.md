@@ -1,6 +1,6 @@
 # 律师文书基础信息与关键事实复核助手：快速启动
 
-当前发布版本：`v0.4.0-rc1`
+当前开发版本：`v0.5.0-dev`
 
 ## 1. 如何启动
 
@@ -87,6 +87,36 @@ sample_data/
 关闭 `start.bat` 的黑色窗口即可停止服务。
 
 也可以双击 `stop.bat` 尝试停止本项目启动的 Streamlit 服务。
+
+## 5.1 桌面版启动
+
+v0.5.0-dev 新增 Tauri 桌面壳。桌面版会启动本地 Python / Streamlit 服务，并提供状态、日志和 data / exports / logs 目录入口。
+
+开发模式：
+
+```text
+cd desktop
+npm install
+npm run dev
+```
+
+也可直接运行：
+
+```text
+python scripts/desktop_service.py status
+python scripts/desktop_service.py start
+python scripts/desktop_service.py stop
+```
+
+桌面版不改变复核规则，不保存完整上传文书正文，不接入外部 API。详细说明见 `docs/桌面版说明.md`。
+
+| 版本 | 启动方式 | 适合对象 |
+| --- | --- | --- |
+| Portable Streamlit 版 | 双击 `start.bat` | 稳定演示、低依赖交付 |
+| Tauri 桌面壳版 | 打开桌面壳，再启动本地服务 | 更接近桌面应用体验 |
+| 开发者模式 | `streamlit run app/main.py` / `npm run dev` | 开发调试 |
+
+v0.5.0-rc1 桌面壳仍依赖本地 Python 服务，不是完全独立 exe。核心复核功能仍由 Python / Streamlit 提供。
 
 ## 6. 常见问题
 

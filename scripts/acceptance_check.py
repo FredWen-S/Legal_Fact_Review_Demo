@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import json
 import sqlite3
+import subprocess
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from io import BytesIO
@@ -30,7 +31,8 @@ from app.parsers.pdf_parser import is_scanned_pdf
 from app.parsers.ocr_pdf_parser import parse_pdf_with_ocr
 from scripts.build_portable import build_portable
 from scripts.build_release_zip import build_release_zip
-from scripts.generate_test_files import TEST_CASES_DIR, generate_test_files
+from scripts.build_desktop_release import build_desktop_release
+from scripts.generate_test_files import generate_test_files
 from scripts.windows.preflight_check import run_preflight
 from app.reports.case_package import build_case_review_package_zip
 from app.reports.docx_annotation import ANNOTATION_DISCLAIMER, build_annotated_docx
@@ -180,52 +182,54 @@ def main() -> None:
     if ANNOTATION_DISCLAIMER not in annotated_text:
         raise SystemExit("Word 复核提示版缺少免责声明")
 
-    generated_test_files = generate_test_files()
-    if len(generated_test_files) < 20:
-        raise SystemExit(f"测试文件生成数量不足：{len(generated_test_files)}")
-    case_dirs = sorted(path for path in TEST_CASES_DIR.iterdir() if path.is_dir())
-    if len(case_dirs) < 6:
-        raise SystemExit(f"测试 case 目录数量不足：{len(case_dirs)}")
-    if any(not (case_dir / "README.md").exists() for case_dir in case_dirs):
-        raise SystemExit("存在缺少 README.md 的测试 case")
+    with TemporaryDirectory() as tmpdir:
+        test_cases_dir = Path(tmpdir) / "acceptance_test_cases"
+        generated_test_files = generate_test_files(output_dir=test_cases_dir)
+        if len(generated_test_files) < 20:
+            raise SystemExit(f"测试文件生成数量不足：{len(generated_test_files)}")
+        case_dirs = sorted(path for path in test_cases_dir.iterdir() if path.is_dir())
+        if len(case_dirs) < 6:
+            raise SystemExit(f"测试 case 目录数量不足：{len(case_dirs)}")
+        if any(not (case_dir / "README.md").exists() for case_dir in case_dirs):
+            raise SystemExit("存在缺少 README.md 的测试 case")
 
-    case01 = TEST_CASES_DIR / "case_01_full_review_basic"
-    case01_findings = review_document(
-        parse_docx(case01 / "sample_complaint.docx"),
-        parse_base_info(case01 / "base_info.xlsx"),
-        parse_evidence_index(case01 / "evidence_index.xlsx"),
-    )
-    case01_risks = {finding.risk_type for finding in case01_findings}
-    expected_case01_risks = {
-        "SOURCE_MISMATCH",
-        "AMOUNT_INCONSISTENCY",
-        "EVIDENCE_REFERENCE_MISSING",
-        "PLACEHOLDER_REMAINING",
-        "FORMAT_ERROR",
-        "DATE_LOGIC_WARNING",
-    }
-    missing_case01 = expected_case01_risks - case01_risks
-    if missing_case01:
-        raise SystemExit(f"Case 01 未覆盖预期风险类型：{', '.join(sorted(missing_case01))}")
+        case01 = test_cases_dir / "case_01_full_review_basic"
+        case01_findings = review_document(
+            parse_docx(case01 / "sample_complaint.docx"),
+            parse_base_info(case01 / "base_info.xlsx"),
+            parse_evidence_index(case01 / "evidence_index.xlsx"),
+        )
+        case01_risks = {finding.risk_type for finding in case01_findings}
+        expected_case01_risks = {
+            "SOURCE_MISMATCH",
+            "AMOUNT_INCONSISTENCY",
+            "EVIDENCE_REFERENCE_MISSING",
+            "PLACEHOLDER_REMAINING",
+            "FORMAT_ERROR",
+            "DATE_LOGIC_WARNING",
+        }
+        missing_case01 = expected_case01_risks - case01_risks
+        if missing_case01:
+            raise SystemExit(f"Case 01 未覆盖预期风险类型：{', '.join(sorted(missing_case01))}")
 
-    case02 = TEST_CASES_DIR / "case_02_single_document_only"
-    case02_chunks = parse_docx(case02 / "single_document.docx")
-    case02_findings = review_single_document(case02_chunks)
-    case02_risks = {finding.risk_type for finding in case02_findings}
-    if "SOURCE_MISMATCH" in case02_risks or "EVIDENCE_REFERENCE_MISSING" in case02_risks:
-        raise SystemExit("Case 02 单文书模式出现外部比对或证据目录误报")
-    if not build_external_review_fields(case02_chunks):
-        raise SystemExit("Case 02 未生成待外部复核字段")
+        case02 = test_cases_dir / "case_02_single_document_only"
+        case02_chunks = parse_docx(case02 / "single_document.docx")
+        case02_findings = review_single_document(case02_chunks)
+        case02_risks = {finding.risk_type for finding in case02_findings}
+        if "SOURCE_MISMATCH" in case02_risks or "EVIDENCE_REFERENCE_MISSING" in case02_risks:
+            raise SystemExit("Case 02 单文书模式出现外部比对或证据目录误报")
+        if not build_external_review_fields(case02_chunks):
+            raise SystemExit("Case 02 未生成待外部复核字段")
 
-    case06 = TEST_CASES_DIR / "case_06_clean_document"
-    case06_findings = review_document(
-        parse_docx(case06 / "clean_document.docx"),
-        parse_base_info(case06 / "base_info.xlsx"),
-        parse_evidence_index(case06 / "evidence_index.xlsx"),
-    )
-    case06_risks = {finding.risk_type for finding in case06_findings}
-    if len(case06_findings) > 1 or {"SOURCE_MISMATCH", "EVIDENCE_REFERENCE_MISSING", "PLACEHOLDER_REMAINING"} & case06_risks:
-        raise SystemExit(f"Case 06 干净场景风险过多或存在误报：{sorted(case06_risks)}")
+        case06 = test_cases_dir / "case_06_clean_document"
+        case06_findings = review_document(
+            parse_docx(case06 / "clean_document.docx"),
+            parse_base_info(case06 / "base_info.xlsx"),
+            parse_evidence_index(case06 / "evidence_index.xlsx"),
+        )
+        case06_risks = {finding.risk_type for finding in case06_findings}
+        if len(case06_findings) > 1 or {"SOURCE_MISMATCH", "EVIDENCE_REFERENCE_MISSING", "PLACEHOLDER_REMAINING"} & case06_risks:
+            raise SystemExit(f"Case 06 干净场景风险过多或存在误报：{sorted(case06_risks)}")
 
     with TemporaryDirectory() as tmpdir:
         config_root = Path(tmpdir)
@@ -241,7 +245,9 @@ def main() -> None:
         broken_path.write_text("enabled_risk_types: [NOT_A_RISK]\n", encoding="utf-8")
         if not load_review_config_with_status(broken_path).fallback_used:
             raise SystemExit("配置损坏时未 fallback 默认配置")
-        case09 = TEST_CASES_DIR / "case_09_custom_rules_profile"
+        config_test_cases_dir = config_root / "acceptance_test_cases"
+        generate_test_files(output_dir=config_test_cases_dir)
+        case09 = config_test_cases_dir / "case_09_custom_rules_profile"
         custom_config = import_rules_with_history(
             case09 / "custom_review_rules.yml",
             target_path=default_config_path,
@@ -330,10 +336,12 @@ def main() -> None:
         if not {"config_version", "document_profile"}.issubset(columns) or "rule_config_history" not in tables or row_count != 1:
             raise SystemExit("旧 SQLite migration 未正确补列、建表或保留旧记录")
 
-    case08 = TEST_CASES_DIR / "case_08_case_workspace_batch"
-    if not case08.exists():
-        raise SystemExit("Case 08 测试目录未生成")
     with TemporaryDirectory() as tmpdir:
+        case_test_root = Path(tmpdir) / "acceptance_test_cases"
+        generate_test_files(output_dir=case_test_root)
+        case08 = case_test_root / "case_08_case_workspace_batch"
+        if not case08.exists():
+            raise SystemExit("Case 08 测试目录未生成")
         workspace_db = Path(tmpdir) / "case_workspace.sqlite"
         case = create_case_workspace(
             "Case 08 批量复核验收案件",
@@ -386,6 +394,31 @@ def main() -> None:
             for path in portable_paths
         ):
             raise SystemExit("portable 包包含用户数据或缓存文件")
+
+    desktop_status = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "desktop_service.py"), "status", "--root", str(ROOT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if desktop_status.returncode != 0:
+        raise SystemExit(f"desktop_service status 执行失败：{desktop_status.stderr}")
+    try:
+        desktop_payload = json.loads(desktop_status.stdout)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"desktop_service status 未输出 JSON：{desktop_status.stdout}") from exc
+    if desktop_payload.get("status") not in {"stopped", "starting", "running"}:
+        raise SystemExit(f"desktop_service status 状态异常：{desktop_payload}")
+
+    with TemporaryDirectory() as tmpdir:
+        desktop_package = build_desktop_release(Path(tmpdir))
+        desktop_paths = [path.relative_to(desktop_package).as_posix() for path in desktop_package.rglob("*")]
+        if not (desktop_package / "desktop" / "package.json").exists():
+            raise SystemExit("桌面版 release 包缺少 desktop/package.json")
+        if not (desktop_package / "scripts" / "desktop_service.py").exists():
+            raise SystemExit("桌面版 release 包缺少 scripts/desktop_service.py")
+        if any(path.endswith("review_runs.sqlite") or "__pycache__" in path or ".venv" in path for path in desktop_paths):
+            raise SystemExit("桌面版 release 包包含用户数据或缓存文件")
 
     with TemporaryDirectory() as tmpdir:
         preflight_root = Path(tmpdir) / "preflight"

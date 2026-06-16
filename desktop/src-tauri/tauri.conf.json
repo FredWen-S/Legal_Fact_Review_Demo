@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "律师文书基础信息与关键事实复核助手",
+  "version": "0.5.0-dev",
+  "identifier": "com.legalfactreview.desktop",
+  "build": {
+    "beforeDevCommand": "npm run serve",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "律师文书基础信息与关键事实复核助手",
+        "width": 1100,
+        "height": 780,
+        "minWidth": 860,
+        "minHeight": 620
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
+  }
+}

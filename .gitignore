@@ -19,3 +19,8 @@ build/
 /RELEASE_NOTES_v*.md
 /RELEASE_CHECKLIST_v*.md
 /SHA256SUMS_v*.txt
+
+# Desktop build outputs
+/desktop/node_modules/
+/desktop/src-tauri/target/
+/desktop/src-tauri/Cargo.lock

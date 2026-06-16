@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>律师文书基础信息与关键事实复核助手</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="header">
+        <p class="eyebrow">LegalFactReview Desktop</p>
+        <h1>律师文书基础信息与关键事实复核助手</h1>
+        <p>桌面壳用于启动本地 Python / Streamlit 服务。复核逻辑仍在本机运行。</p>
+      </section>
+
+      <section class="status-panel">
+        <div>
+          <span class="label">当前状态</span>
+          <strong id="statusText">未启动</strong>
+        </div>
+        <div>
+          <span class="label">服务地址</span>
+          <code id="urlText">-</code>
+        </div>
+        <div>
+          <span class="label">PID</span>
+          <code id="pidText">-</code>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button id="startBtn">启动本地服务</button>
+        <button id="openBtn">打开复核界面</button>
+        <button id="stopBtn">停止本地服务</button>
+        <button id="dataBtn">打开 data 目录</button>
+        <button id="exportsBtn">打开 exports 目录</button>
+        <button id="logsBtn">打开 logs 目录</button>
+      </section>
+
+      <section class="message" id="messageBox"></section>
+
+      <section class="logs">
+        <div class="logs-title">
+          <h2>最近日志</h2>
+          <div class="logs-actions">
+            <button id="viewLogsBtn">查看日志</button>
+            <button id="refreshBtn">刷新状态</button>
+          </div>
+        </div>
+        <pre id="logText">暂无日志。</pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

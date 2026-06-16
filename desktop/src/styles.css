@@ -1,0 +1,167 @@
+:root {
+  color: #1f2937;
+  background: #f6f7f9;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  width: min(1040px, calc(100vw - 48px));
+  margin: 32px auto;
+}
+
+.header {
+  padding: 8px 0 18px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: 28px;
+  font-weight: 750;
+}
+
+p {
+  margin: 0;
+  color: #526070;
+}
+
+.status-panel {
+  display: grid;
+  grid-template-columns: 1.1fr 2fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.status-panel > div,
+.logs,
+.message {
+  background: #fff;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+strong[data-status="running"] {
+  color: #047857;
+}
+
+strong[data-status="starting"] {
+  color: #b45309;
+}
+
+strong[data-status="error"] {
+  color: #b91c1c;
+}
+
+code {
+  word-break: break-all;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+button:hover {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #dbe3eb;
+}
+
+button.primary {
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+.message {
+  min-height: 48px;
+  margin-bottom: 14px;
+  color: #475569;
+}
+
+.message:empty {
+  display: none;
+}
+
+.message.error {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+}
+
+.logs-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.logs-actions {
+  display: flex;
+  gap: 8px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+pre {
+  overflow: auto;
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: #111827;
+  color: #e5e7eb;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .status-panel,
+  .actions {
+    grid-template-columns: 1fr;
+  }
+}

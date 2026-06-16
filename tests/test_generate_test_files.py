@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from pathlib import Path
 
 import fitz
@@ -13,22 +14,34 @@ from app.parsers.excel_parser import parse_base_info, parse_evidence_index
 from app.parsers.pdf_parser import is_scanned_pdf, parse_pdf
 from app.review_engine import review_document, review_single_document
 from scripts.generate_test_files import TEST_CASES_DIR, generate_test_files
+from scripts.acceptance_check import main as acceptance_main
 
 
-def test_generate_test_files_creates_expected_cases():
-    generated = generate_test_files()
-    case_dirs = sorted(path for path in TEST_CASES_DIR.iterdir() if path.is_dir())
+def test_generate_test_files_creates_expected_cases(tmp_path: Path):
+    output_dir = tmp_path / "test_cases"
+    generated = generate_test_files(output_dir=output_dir)
+    case_dirs = sorted(path for path in output_dir.iterdir() if path.is_dir())
 
     assert generated
-    assert TEST_CASES_DIR.is_dir()
+    assert output_dir.is_dir()
     assert len(case_dirs) >= 6
     assert all((case_dir / "README.md").exists() for case_dir in case_dirs)
-    assert (TEST_CASES_DIR / "case_08_case_workspace_batch").is_dir()
+    assert (output_dir / "case_08_case_workspace_batch").is_dir()
+    assert TEST_CASES_DIR != output_dir
 
 
-def test_case_01_full_review_files_and_expected_risks():
-    generate_test_files()
-    case_dir = TEST_CASES_DIR / "case_01_full_review_basic"
+def test_generate_test_files_supports_custom_output(tmp_path: Path):
+    output_dir = tmp_path / "custom_cases"
+    generated = generate_test_files(output_dir=output_dir)
+
+    assert generated
+    assert (output_dir / "case_01_full_review_basic" / "sample_complaint.docx").exists()
+
+
+def test_case_01_full_review_files_and_expected_risks(tmp_path: Path):
+    output_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=output_dir)
+    case_dir = output_dir / "case_01_full_review_basic"
 
     assert (case_dir / "sample_complaint.docx").exists()
     assert (case_dir / "sample_complaint.pdf").exists()
@@ -51,9 +64,10 @@ def test_case_01_full_review_files_and_expected_risks():
     assert parse_pdf(case_dir / "sample_complaint.pdf")
 
 
-def test_case_02_single_document_only_has_no_external_sources():
-    generate_test_files()
-    case_dir = TEST_CASES_DIR / "case_02_single_document_only"
+def test_case_02_single_document_only_has_no_external_sources(tmp_path: Path):
+    output_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=output_dir)
+    case_dir = output_dir / "case_02_single_document_only"
 
     assert (case_dir / "single_document.docx").exists()
     assert (case_dir / "single_document.pdf").exists()
@@ -70,9 +84,10 @@ def test_case_02_single_document_only_has_no_external_sources():
     assert external_fields
 
 
-def test_case_06_clean_document_has_low_risk_profile():
-    generate_test_files()
-    case_dir = TEST_CASES_DIR / "case_06_clean_document"
+def test_case_06_clean_document_has_low_risk_profile(tmp_path: Path):
+    output_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=output_dir)
+    case_dir = output_dir / "case_06_clean_document"
     chunks = parse_docx(case_dir / "clean_document.docx")
     findings = review_document(chunks, parse_base_info(case_dir / "base_info.xlsx"), parse_evidence_index(case_dir / "evidence_index.xlsx"))
     risk_types = {finding.risk_type for finding in findings}
@@ -83,12 +98,22 @@ def test_case_06_clean_document_has_low_risk_profile():
     assert "PLACEHOLDER_REMAINING" not in risk_types
 
 
-def test_generated_test_files_do_not_contain_real_sensitive_patterns():
-    generate_test_files()
-    text = "\n".join(_extract_text(path) for path in TEST_CASES_DIR.rglob("*") if path.is_file())
+def test_generated_test_files_do_not_contain_real_sensitive_patterns(tmp_path: Path):
+    output_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=output_dir)
+    text = "\n".join(_extract_text(path) for path in output_dir.rglob("*") if path.is_file())
 
     assert not re.search(r"(?<!\d)\d{17}[\dXx](?!\d)", text)
     assert not re.search(r"(?<!\d)1[3-9]\d{9}(?!\d)", text)
+
+
+def test_acceptance_check_does_not_modify_tracked_sample_data():
+    before = _directory_hashes(TEST_CASES_DIR)
+
+    acceptance_main()
+
+    after = _directory_hashes(TEST_CASES_DIR)
+    assert after == before
 
 
 def _extract_text(path: Path) -> str:
@@ -107,3 +132,11 @@ def _extract_text(path: Path) -> str:
                 values.extend(str(cell) for cell in row if cell is not None)
         return "\n".join(values)
     return ""
+
+
+def _directory_hashes(root: Path) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            hashes[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes

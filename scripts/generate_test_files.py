@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import textwrap
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -525,14 +526,15 @@ CASE_SPECS: list[CaseSpec] = [
 ]
 
 
-def generate_test_files(clean: bool = True) -> list[Path]:
-    if clean and TEST_CASES_DIR.exists():
-        shutil.rmtree(TEST_CASES_DIR)
-    TEST_CASES_DIR.mkdir(parents=True, exist_ok=True)
+def generate_test_files(clean: bool = True, output_dir: str | Path | None = None) -> list[Path]:
+    output_path = Path(output_dir) if output_dir else TEST_CASES_DIR
+    if clean and output_path.exists():
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     generated: list[Path] = []
     for spec in CASE_SPECS:
-        case_dir = TEST_CASES_DIR / spec.dirname
+        case_dir = output_path / spec.dirname
         case_dir.mkdir(parents=True, exist_ok=True)
 
         for filename, lines in spec.documents.items():
@@ -676,10 +678,18 @@ def _case_09_custom_config() -> str:
 
 
 def main() -> None:
-    generated = generate_test_files(clean=True)
-    print(f"Generated {len(generated)} files in {TEST_CASES_DIR}")
+    parser = argparse.ArgumentParser(description="Generate LegalFactReview sample test cases.")
+    parser.add_argument("--output", default=str(TEST_CASES_DIR), help="Output directory. Defaults to app/sample_data/test_cases.")
+    parser.add_argument("--no-clean", action="store_true", help="Do not remove the output directory before generating files.")
+    args = parser.parse_args()
+    output_dir = Path(args.output)
+    generated = generate_test_files(clean=not args.no_clean, output_dir=output_dir)
+    print(f"Generated {len(generated)} files in {output_dir}")
     for path in generated:
-        print(path.relative_to(ROOT).as_posix())
+        try:
+            print(path.relative_to(ROOT).as_posix())
+        except ValueError:
+            print(path.as_posix())
 
 
 if __name__ == "__main__":

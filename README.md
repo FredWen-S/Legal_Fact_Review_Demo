@@ -4,7 +4,7 @@ Legal Fact Review Demo 是一个本地运行的律师文书事实项复核助手
 
 本工具不是自动法律判断工具，不生成法律意见，不能替代律师、律师助理或法务人员的专业判断。
 
-当前发布版本：`v0.4.0-rc1`
+当前开发版本：`v0.5.0-dev`
 
 用户使用说明书：[docs/用户使用说明书.md](docs/用户使用说明书.md)
 
@@ -59,6 +59,45 @@ dist/LegalFactReview_v0.4.0-rc1_windows_portable.zip
 如果交付包内包含 `wheelhouse/`，启动前检查会识别 wheel 文件中的 Python 标签，例如 `cp312`。当 wheelhouse 是 `cp312` 但当前 Python 是 3.11 时，脚本会给出清晰提示并停止，避免盲目离线安装失败。v0.4.0-rc1 推荐使用 Python 3.11 或 3.12，并准备匹配的 wheelhouse。
 
 当前推荐交付方式为 portable 源码包 + `start.bat` 自动创建虚拟环境。由于 Streamlit、pandas、PyMuPDF、python-docx 等依赖较多，暂不强制提供 PyInstaller exe，以降低演示交付风险。
+
+## 桌面版 Tauri 壳
+
+v0.5.0-dev 新增 Tauri 桌面壳骨架，用于让非技术用户通过桌面应用启动本地 Python / Streamlit 服务。桌面壳只负责启动状态、日志入口和目录入口，不重写复核引擎。
+
+开发模式：
+
+```bash
+cd desktop
+npm install
+npm run dev
+```
+
+也可以直接使用服务管理脚本：
+
+```bash
+python scripts/desktop_service.py status
+python scripts/desktop_service.py start
+python scripts/desktop_service.py stop
+python scripts/desktop_service.py logs
+```
+
+桌面版要求 Node.js 18+、Rust stable、Windows WebView2 Runtime，以及 Python 3.10-3.12。详细说明见 [docs/桌面版说明.md](docs/桌面版说明.md)。
+
+桌面版、portable 版、源码 Streamlit 启动和 Docker 启动共用同一套 Python 应用与复核规则。配置中心用于调整辅助复核规则，不代表系统能够自动完成法律判断。
+
+| 版本 | 启动方式 | 适合对象 |
+| --- | --- | --- |
+| Portable Streamlit 版 | 双击 `start.bat` | 稳定演示、低依赖交付 |
+| Tauri 桌面壳版 | 打开桌面壳，再启动本地服务 | 更接近桌面应用体验 |
+| 开发者模式 | `streamlit run app/main.py` / `npm run dev` | 开发调试 |
+
+v0.5.0-rc1 桌面壳仍依赖本地 Python 服务，不是完全独立 exe。桌面壳负责启动、停止和打开本地 Streamlit 服务；核心复核功能仍由 Python / Streamlit 提供。
+
+发布前请确认 `app/sample_data/test_cases` 没有因验收脚本产生非预期 modified；如需手动恢复测试数据，可执行：
+
+```bash
+git restore -- app/sample_data/test_cases
+```
 
 ### 离线依赖包
 

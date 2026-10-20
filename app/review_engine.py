@@ -6,6 +6,7 @@ from app.config.review_config import ReviewRulesConfig, load_review_config
 from app.extractors.external_review_fields import build_external_review_fields
 from app.extractors.field_extractor import extract_fields
 from app.extractors.llm_extractor import extract_structured_entities, structured_entities_to_extracted_items
+from app.llm.risk_explainer import explain_findings
 from app.models.schemas import (
     BaseInfoItem,
     EvidenceItem,
@@ -34,6 +35,7 @@ from app.validators.source_compare_rules import (
     check_possibly_outdated,
     check_source_mismatch,
 )
+from app.validators.statute_rules import check_statute_references
 
 
 def review_single_document(
@@ -119,6 +121,7 @@ def _run_review(
     findings.extend(check_spelling_variations(items, structured_extraction))
     findings.extend(check_clause_numbering(chunks))
     findings.extend(check_knowledge_alignment(chunks, structured_extraction, knowledge_context))
+    findings.extend(check_statute_references(structured_extraction))
 
     if compare_sources:
         findings.extend(check_source_mismatch(items, base_info))
@@ -138,11 +141,13 @@ def _run_review(
         config=config,
         structured_extraction=structured_extraction,
     )
+    explained_findings, risk_explanation = explain_findings(_dedupe(configured_findings), chunks)
     return ReviewResult(
-        findings=_dedupe(configured_findings),
+        findings=explained_findings,
         external_fields=external_fields,
         structured_extraction=structured_extraction,
         knowledge_context=knowledge_context,
+        risk_explanation=risk_explanation,
     )
 
 

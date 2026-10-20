@@ -57,6 +57,9 @@ Compared with the earlier rule-based demo, this version adds:
   - dates
   - amounts
   - contract IDs
+  - statute citations (e.g. `《中华人民共和国民法典》第五百七十七条`, `民事诉讼法第一百二十二条`)
+- statute citation cross-check against a local statute reference list (repealed laws, article numbers beyond the law's length, unknown laws)
+- LLM-generated risk explanations for every finding, with a deterministic template fallback
 - optional LLM extraction path with mock fallback
 - lightweight local RAG-style retrieval
 - issue schema with:
@@ -80,7 +83,11 @@ Document (DOCX / PDF)
   -> local retrieval over synthetic KB
   -> deterministic validators
   -> RAG comparison validators
-  -> issue aggregation
+  -> statute citation cross-check
+  -> issue aggregation (sorted by severity)
+  -> risk explanations
+       -> LLM if API key exists
+       -> rule templates otherwise
   -> Streamlit UI + HTML/Excel/Word exports
 ```
 
@@ -99,7 +106,9 @@ Document (DOCX / PDF)
    - deterministic document checks
    - source comparison checks
    - RAG comparison checks
-6. Export issues plus extraction/retrieval context.
+   - statute citation checks against `kb/statutes`
+6. Sort issues by severity and attach a risk explanation to each one (one batched LLM call, or templates offline).
+7. Export issues plus extraction/retrieval context.
 
 ## Module Guide
 
@@ -126,6 +135,9 @@ These convert uploaded files into chunked text for downstream review.
   - structured extraction
   - optional LLM call
   - mock fallback when no API key is available
+- `app/extractors/statute_extractor.py`
+  - statute citation extraction with Chinese numeral parsing
+  - ignores contract clause references such as `《技术服务合同》第三条`
 - `app/extractors/external_review_fields.py`
   - builds the review workbench fields shown in UI and exports
 
@@ -150,6 +162,19 @@ These convert uploaded files into chunked text for downstream review.
 - `app/validators/rag_rules.py`
   - compares extracted values with retrieved KB records
   - checks for missing standard clauses
+- `app/validators/statute_rules.py`
+  - `STATUTE_REPEALED`: cited law is repealed (e.g. 《合同法》, replaced by 《民法典》)
+  - `STATUTE_ARTICLE_OUT_OF_RANGE`: article number exceeds the law's article count
+  - `STATUTE_UNVERIFIED`: law is not in the local reference list
+
+### LLM
+
+- `app/llm/client.py`
+  - shared OpenAI-compatible chat-completion client (JSON mode, stable fallback reason codes)
+- `app/llm/risk_explainer.py`
+  - sends the severity-sorted findings (up to 30) to the LLM in one request
+  - validates the JSON response with Pydantic, ignores unknown `risk_id`s and text that claims a legal conclusion
+  - falls back to per-risk-type template explanations when no API key is set or the call fails
 
 ### Reports
 
@@ -168,6 +193,8 @@ Exports include issues plus AI/RAG context for demoability.
   - fictional standard clause entries
 - `kb/templates`
   - fictional template metadata used for retrieval
+- `kb/statutes`
+  - public statute metadata (status, effective / repeal date, article count) used to cross-check citations; a small demo list, not a legal database
 
 ## Deterministic Checks Kept
 
@@ -184,7 +211,9 @@ The project still keeps deterministic checks for:
 
 ## LLM Configuration
 
-If no API key is configured, the app automatically uses mock extraction.
+If no API key is configured, the app automatically uses mock extraction and template risk explanations.
+
+When a key is configured, the LLM is used for two steps: structured extraction (including statute citations) and risk explanations. Each finding records `explanation_source` (`llm` or `mock`), and exports include a `Risk Explanation` column. Explanations are review hints, not legal conclusions; identifiers in them are masked in exports.
 
 Supported environment variables:
 
@@ -359,7 +388,7 @@ These cases are for engineering regression and demo explainability. They are not
 Run the focused verification suite:
 
 ```powershell
-python -m pytest tests/test_extractors.py tests/test_validators.py tests/test_reports.py tests/test_manual_review.py tests/test_single_document_mode.py tests/test_llm_rag_pipeline.py tests/test_case_workspace.py tests/test_rule_config_center.py tests/test_docx_package_export.py tests/test_docx_annotation.py tests/test_single_review_workflow.py tests/test_embedding_retrieval.py tests/test_review_history.py tests/test_audit_log.py tests/test_redaction_policy.py tests/test_privacy_storage.py tests/test_privacy_exports.py tests/test_demo_cases.py -q
+python -m pytest tests/test_extractors.py tests/test_validators.py tests/test_reports.py tests/test_manual_review.py tests/test_single_document_mode.py tests/test_llm_rag_pipeline.py tests/test_case_workspace.py tests/test_rule_config_center.py tests/test_docx_package_export.py tests/test_docx_annotation.py tests/test_single_review_workflow.py tests/test_embedding_retrieval.py tests/test_review_history.py tests/test_audit_log.py tests/test_redaction_policy.py tests/test_privacy_storage.py tests/test_privacy_exports.py tests/test_demo_cases.py tests/test_statute_references.py tests/test_risk_explainer.py -q
 ```
 
 This focused suite covers deterministic extraction, validation rules, LLM fallback/schema behavior, local RAG no-match behavior, report exports, manual review records, case workspace behavior, rule configuration, DOCX package generation, lightweight history/audit storage, privacy/redaction behavior, and synthetic demo/evaluation cases.
@@ -385,6 +414,7 @@ That makes it much stronger for an AI tooling or full-stack engineering portfoli
 - LLM extraction uses an OpenAI-compatible HTTP path but is not vendor-specific beyond that interface.
 - LLM output is schema-validated, but the fallback path is still a demo safety mechanism rather than a legal-quality extraction guarantee.
 - Clause coverage is based on a small synthetic KB.
+- The statute reference list covers only a handful of laws and checks name, status and article count, not article content or amended article numbering.
 - No authentication, redaction policy engine, or enterprise audit trail is implemented.
 - Review History / Audit Log is metadata-only local demo instrumentation, not a production compliance trail.
 - Privacy/redaction is a lightweight local demo safeguard, not a production DLP or compliance system.

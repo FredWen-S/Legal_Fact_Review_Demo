@@ -1,0 +1,11 @@
+{
+  "id": "statute-company-law",
+  "title": "中华人民共和国公司法",
+  "short_name": "公司法",
+  "aliases": [],
+  "status": "effective",
+  "effective_date": "2024-07-01",
+  "article_count": 266,
+  "version_note": "2023年修订；修订后条文序号有调整，引用旧版条号需人工核对。",
+  "source_note": "Public statute metadata for demo cross-checks only; verify against the official published text."
+}

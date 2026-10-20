@@ -27,6 +27,8 @@ ISSUE_COLUMNS = [
     "Reference Value",
     "Reference Source",
     "Confidence",
+    "Risk Explanation",
+    "Explanation Source",
 ]
 
 EXTERNAL_FIELD_COLUMNS = {
@@ -71,6 +73,9 @@ def findings_to_dataframe(
                 "Reference Value": mask_sensitive(issue["reference_value"], finding.field_name),
                 "Reference Source": issue["reference_source"],
                 "Confidence": issue["confidence"],
+                # Free text (possibly LLM-written) can quote IDs or credit codes, so always mask them.
+                "Risk Explanation": redact_text(issue["risk_explanation"], policy) if issue["risk_explanation"] else None,
+                "Explanation Source": issue["explanation_source"],
             }
         )
     return _redact_dataframe(pd.DataFrame(rows, columns=ISSUE_COLUMNS), policy)

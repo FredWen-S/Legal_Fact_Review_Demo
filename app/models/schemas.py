@@ -21,6 +21,9 @@ RiskType = Literal[
     "CLIENT_PROFILE_MISMATCH",
     "MISSING_STANDARD_CLAUSE",
     "TEMPLATE_FIELD_MISMATCH",
+    "STATUTE_REPEALED",
+    "STATUTE_ARTICLE_OUT_OF_RANGE",
+    "STATUTE_UNVERIFIED",
 ]
 
 Severity = Literal["low", "medium", "high"]
@@ -33,7 +36,9 @@ EntityType = Literal[
     "date",
     "amount",
     "contract_id",
+    "statute_reference",
 ]
+ExplanationMode = Literal["mock", "llm"]
 KnowledgeType = Literal["client", "clause", "template"]
 RetrievalStatus = Literal["matched", "no_match", "low_confidence_match"]
 
@@ -58,6 +63,8 @@ class ReviewFinding(BaseModel):
     confidence: float = Field(ge=0, le=1)
     reason: str
     suggested_action: str
+    risk_explanation: Optional[str] = None
+    explanation_source: Optional[ExplanationMode] = None
 
     @field_validator("severity", mode="before")
     @classmethod
@@ -123,6 +130,8 @@ class ReviewFinding(BaseModel):
             "reference_value": self.reference_value,
             "reference_source": self.reference_source,
             "confidence": self.confidence,
+            "risk_explanation": self.risk_explanation,
+            "explanation_source": self.explanation_source,
         }
 
 
@@ -240,6 +249,15 @@ class StructuredExtractionResult(BaseModel):
         return ordered
 
 
+class RiskExplanationResult(BaseModel):
+    mode: ExplanationMode
+    model_name: Optional[str] = None
+    prompt_version: str = "legal-review-risk-explanation-v1"
+    explained_count: int = 0
+    llm_explained_count: int = 0
+    fallback_reason: Optional[str] = None
+
+
 class KnowledgeMatch(BaseModel):
     kb_type: KnowledgeType
     doc_id: str
@@ -280,6 +298,7 @@ class ReviewResult(BaseModel):
     external_fields: list[ExtractedReviewField] = Field(default_factory=list)
     structured_extraction: Optional[StructuredExtractionResult] = None
     knowledge_context: KnowledgeContext = Field(default_factory=KnowledgeContext)
+    risk_explanation: Optional[RiskExplanationResult] = None
 
     def severity_counts(self) -> dict[str, int]:
         return {

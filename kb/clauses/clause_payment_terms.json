@@ -1,0 +1,8 @@
+{
+  "id": "clause-payment-terms",
+  "title": "付款与结算条款",
+  "summary": "Defines invoice timing, payment deadline, and overdue handling.",
+  "body": "甲方应在收到合法有效发票后按约定付款，逾期付款应说明原因并按约定承担违约责任。",
+  "keywords": ["付款", "结算", "发票", "逾期付款", "支付期限"],
+  "presence_keywords": ["付款", "结算", "发票", "支付期限"]
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -16,13 +16,40 @@ RiskType = Literal[
     "EVIDENCE_REFERENCE_MISSING",
     "AMOUNT_INCONSISTENCY",
     "DATE_LOGIC_WARNING",
+    "SPELLING_VARIATION",
+    "CLAUSE_NUMBERING_ERROR",
+    "CLIENT_PROFILE_MISMATCH",
+    "MISSING_STANDARD_CLAUSE",
+    "TEMPLATE_FIELD_MISMATCH",
 ]
+
+Severity = Literal["low", "medium", "high"]
+EntityType = Literal[
+    "party",
+    "company_name",
+    "credit_code",
+    "legal_representative",
+    "registered_address",
+    "date",
+    "amount",
+    "contract_id",
+]
+KnowledgeType = Literal["client", "clause", "template"]
+RetrievalStatus = Literal["matched", "no_match", "low_confidence_match"]
+
+FORBIDDEN_REVIEW_TERMS = {
+    "system confirmed error",
+    "confirmed legal conclusion",
+    "法律上必然",
+    "系统确认错误",
+    "自动核验通过",
+}
 
 
 class ReviewFinding(BaseModel):
     risk_id: str
     risk_type: RiskType
-    severity: Literal["low", "medium", "high"]
+    severity: Severity
     field_name: str
     document_value: Optional[str]
     reference_value: Optional[str]
@@ -31,6 +58,14 @@ class ReviewFinding(BaseModel):
     confidence: float = Field(ge=0, le=1)
     reason: str
     suggested_action: str
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def normalize_severity(cls, value: str) -> str:
+        normalized = str(value).strip().lower()
+        if normalized not in {"low", "medium", "high"}:
+            raise ValueError("severity must be low, medium, or high")
+        return normalized
 
     @field_validator("source_location")
     @classmethod
@@ -42,12 +77,53 @@ class ReviewFinding(BaseModel):
     @field_validator("suggested_action")
     @classmethod
     def must_be_review_suggestion(cls, value: str) -> str:
-        forbidden = ["系统已确认错误", "确认错误", "必然错误", "法律上必然", "无效"]
-        if any(term in value for term in forbidden):
-            raise ValueError("suggested_action must not claim confirmed error or legal conclusion")
-        if "建议人工复核" not in value:
-            raise ValueError("suggested_action must be phrased as a manual review suggestion")
-        return value
+        text = value.strip()
+        if not text:
+            raise ValueError("suggested_action is required")
+        lower = text.lower()
+        if any(term in lower for term in FORBIDDEN_REVIEW_TERMS):
+            raise ValueError("suggested_action must not claim a confirmed legal conclusion")
+        if "人工复核" not in text and "manual review" not in lower:
+            raise ValueError("suggested_action must clearly recommend manual review")
+        return text
+
+    @property
+    def issue_type(self) -> str:
+        return self.risk_type
+
+    @property
+    def original_text(self) -> Optional[str]:
+        return self.document_value
+
+    @property
+    def suggested_text(self) -> str:
+        return self.suggested_action
+
+    @property
+    def evidence_source(self) -> str:
+        return self.source_location
+
+    @property
+    def explanation(self) -> str:
+        return self.reason
+
+    @property
+    def severity_label(self) -> str:
+        return self.severity.upper()
+
+    def to_issue_record(self) -> dict[str, Any]:
+        return {
+            "severity": self.severity_label,
+            "issue_type": self.issue_type,
+            "original_text": self.original_text,
+            "suggested_text": self.suggested_text,
+            "evidence_source": self.evidence_source,
+            "explanation": self.explanation,
+            "field_name": self.field_name,
+            "reference_value": self.reference_value,
+            "reference_source": self.reference_source,
+            "confidence": self.confidence,
+        }
 
 
 class ExtractedReviewField(BaseModel):
@@ -57,7 +133,7 @@ class ExtractedReviewField(BaseModel):
     role_or_context: Optional[str] = None
     source_location: str
     confidence: float = Field(ge=0, le=1)
-    suggested_review_sources: List[str]
+    suggested_review_sources: list[str]
     suggested_action: str
 
     @field_validator("source_location")
@@ -70,13 +146,15 @@ class ExtractedReviewField(BaseModel):
     @field_validator("suggested_action")
     @classmethod
     def extracted_action_must_be_review_suggestion(cls, value: str) -> str:
-        forbidden = ["系统已确认错误", "确认错误", "必然错误", "法律上必然", "无效"]
-        if any(term in value for term in forbidden):
-            raise ValueError("suggested_action must not claim a confirmed error or legal conclusion")
-        if "建议人工复核" not in value:
-            raise ValueError("suggested_action must be phrased as a manual review suggestion")
-        return value
-
+        text = value.strip()
+        if not text:
+            raise ValueError("suggested_action is required")
+        lower = text.lower()
+        if any(term in lower for term in FORBIDDEN_REVIEW_TERMS):
+            raise ValueError("suggested_action must not claim a confirmed legal conclusion")
+        if "人工复核" not in text and "manual review" not in lower:
+            raise ValueError("suggested_action must clearly recommend manual review")
+        return text
 
 
 class ManualReviewRecord(BaseModel):
@@ -86,7 +164,7 @@ class ManualReviewRecord(BaseModel):
     field_type: str
     extracted_value: str
     confirmed_value: Optional[str] = None
-    review_status: Literal["未复核", "已确认", "需修改", "已忽略"] = "未复核"
+    review_status: str = "未复核"
     review_source: Optional[str] = None
     reviewer_note: Optional[str] = None
     source_location: str
@@ -104,9 +182,9 @@ class ManualReviewRecord(BaseModel):
     def manual_text_must_not_claim_legal_conclusion(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
-        forbidden = ["系统已确认错误", "法律上必然", "必然无效"]
-        if any(term in value for term in forbidden):
-            raise ValueError("manual review text must not claim a system-confirmed error or legal conclusion")
+        lower = value.lower()
+        if any(term in lower for term in FORBIDDEN_REVIEW_TERMS):
+            raise ValueError("manual review text must not claim a confirmed legal conclusion")
         return value
 
 
@@ -121,6 +199,94 @@ class ExtractedItem(BaseModel):
     source_location: str
     confidence: float = Field(default=0.8, ge=0, le=1)
     context: Optional[str] = None
+
+
+class StructuredEntity(BaseModel):
+    entity_type: EntityType
+    value: str
+    normalized_value: Optional[str] = None
+    role: Optional[str] = None
+    source_location: str
+    confidence: float = Field(default=0.8, ge=0, le=1)
+    context: Optional[str] = None
+
+    @field_validator("source_location")
+    @classmethod
+    def structured_source_location_required(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("source_location is required")
+        return value
+
+
+class StructuredExtractionResult(BaseModel):
+    mode: Literal["mock", "llm"]
+    model_name: Optional[str] = None
+    prompt_version: str = "legal-review-structured-extraction-v1"
+    entities: list[StructuredEntity] = Field(default_factory=list)
+    raw_response: Optional[str] = None
+    fallback_reason: Optional[str] = None
+
+    def by_type(self, entity_type: EntityType) -> list[StructuredEntity]:
+        return [entity for entity in self.entities if entity.entity_type == entity_type]
+
+    def values(self, entity_type: EntityType) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for entity in self.by_type(entity_type):
+            value = entity.normalized_value or entity.value
+            if value not in seen:
+                seen.add(value)
+                ordered.append(value)
+        return ordered
+
+
+class KnowledgeMatch(BaseModel):
+    kb_type: KnowledgeType
+    doc_id: str
+    title: str
+    score: float
+    path: str
+    snippet: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    match_status: RetrievalStatus = "matched"
+    match_reason: str = ""
+    min_score: float = 0.0
+
+
+class KnowledgeRetrievalStatus(BaseModel):
+    kb_type: KnowledgeType
+    status: RetrievalStatus
+    min_score: float = 0.0
+    best_score: Optional[float] = None
+    best_doc_id: Optional[str] = None
+    match_reason: str
+
+
+class KnowledgeContext(BaseModel):
+    client_profile: Optional[KnowledgeMatch] = None
+    clauses: list[KnowledgeMatch] = Field(default_factory=list)
+    templates: list[KnowledgeMatch] = Field(default_factory=list)
+    retrieval_statuses: list[KnowledgeRetrievalStatus] = Field(default_factory=list)
+
+    def status_for(self, kb_type: KnowledgeType) -> KnowledgeRetrievalStatus | None:
+        for status in self.retrieval_statuses:
+            if status.kb_type == kb_type:
+                return status
+        return None
+
+
+class ReviewResult(BaseModel):
+    findings: list[ReviewFinding] = Field(default_factory=list)
+    external_fields: list[ExtractedReviewField] = Field(default_factory=list)
+    structured_extraction: Optional[StructuredExtractionResult] = None
+    knowledge_context: KnowledgeContext = Field(default_factory=KnowledgeContext)
+
+    def severity_counts(self) -> dict[str, int]:
+        return {
+            "HIGH": sum(1 for item in self.findings if item.severity == "high"),
+            "MEDIUM": sum(1 for item in self.findings if item.severity == "medium"),
+            "LOW": sum(1 for item in self.findings if item.severity == "low"),
+        }
 
 
 class BaseInfoItem(BaseModel):
@@ -179,9 +345,11 @@ class ReviewRunSummary(BaseModel):
 
 
 class ReviewRunDetail(ReviewRunSummary):
-    findings: List[ReviewFinding] = Field(default_factory=list)
-    external_fields: List[ExtractedReviewField] = Field(default_factory=list)
-    manual_records: List[ManualReviewRecord] = Field(default_factory=list)
+    findings: list[ReviewFinding] = Field(default_factory=list)
+    external_fields: list[ExtractedReviewField] = Field(default_factory=list)
+    manual_records: list[ManualReviewRecord] = Field(default_factory=list)
+    structured_extraction: Optional[StructuredExtractionResult] = None
+    knowledge_context: Optional[KnowledgeContext] = None
 
 
 class FieldDifference(BaseModel):
@@ -194,9 +362,10 @@ class FieldDifference(BaseModel):
     @field_validator("suggested_action")
     @classmethod
     def difference_action_must_be_review_suggestion(cls, value: str) -> str:
-        if "建议人工复核" not in value:
-            raise ValueError("difference suggested_action must be phrased as a manual review suggestion")
-        return value
+        text = value.strip()
+        if "人工复核" not in text and "manual review" not in text.lower():
+            raise ValueError("difference suggested_action must clearly recommend manual review")
+        return text
 
 
 class RuleConfigHistory(BaseModel):

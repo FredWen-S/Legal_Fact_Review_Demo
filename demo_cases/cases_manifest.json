@@ -1,0 +1,114 @@
+{
+  "schema_version": "demo-cases-v1",
+  "cases": [
+    {
+      "case_id": "clean_contract_pass",
+      "title": "Clean synthetic complaint",
+      "description": "A clean synthetic civil complaint that should run in full-review mode with a matched client profile and only a small number of findings.",
+      "document_path": "demo_cases/files/clean_contract_pass/clean_contract_pass.docx",
+      "base_info_path": "demo_cases/files/clean_contract_pass/base_info.xlsx",
+      "evidence_index_path": "demo_cases/files/clean_contract_pass/evidence_index.xlsx",
+      "document_profile": "civil_complaint",
+      "expected": {
+        "mode": "full_review",
+        "min_issue_count": 0,
+        "max_issue_count": 3,
+        "max_high_severity": 0,
+        "expected_issue_types": [],
+        "expected_absent_issue_types": [
+          "SOURCE_MISMATCH",
+          "EVIDENCE_REFERENCE_MISSING",
+          "PLACEHOLDER_REMAINING",
+          "CLIENT_PROFILE_MISMATCH"
+        ],
+        "expected_llm_mode": "mock",
+        "expected_fallback_reason": "no_api_key",
+        "expected_retrieval_statuses": {
+          "client": "matched"
+        },
+        "expected_privacy_summary": true
+      }
+    },
+    {
+      "case_id": "missing_required_fields",
+      "title": "Missing required fields and bad amount format",
+      "description": "A synthetic contract-review input missing contract number, legal representative, registered address, and containing a malformed amount.",
+      "document_path": "demo_cases/files/missing_required_fields/missing_required_fields.docx",
+      "base_info_path": "demo_cases/files/missing_required_fields/base_info.xlsx",
+      "evidence_index_path": "demo_cases/files/missing_required_fields/evidence_index.xlsx",
+      "document_profile": "contract_review",
+      "expected": {
+        "mode": "full_review",
+        "min_issue_count": 1,
+        "expected_issue_types": [
+          "MISSING_FIELD"
+        ],
+        "expected_absent_issue_types": [],
+        "expected_llm_mode": "mock",
+        "expected_fallback_reason": "no_api_key",
+        "expected_privacy_summary": true
+      }
+    },
+    {
+      "case_id": "client_profile_mismatch",
+      "title": "Retrieved client profile mismatch",
+      "description": "A synthetic complaint where the credit code retrieves the client profile but the name, representative, and address do not match.",
+      "document_path": "demo_cases/files/client_profile_mismatch/client_profile_mismatch.docx",
+      "base_info_path": "demo_cases/files/client_profile_mismatch/base_info.xlsx",
+      "evidence_index_path": "demo_cases/files/client_profile_mismatch/evidence_index.xlsx",
+      "document_profile": "civil_complaint",
+      "expected": {
+        "mode": "full_review",
+        "min_issue_count": 1,
+        "expected_issue_types": [
+          "CLIENT_PROFILE_MISMATCH"
+        ],
+        "expected_absent_issue_types": [],
+        "expected_llm_mode": "mock",
+        "expected_fallback_reason": "no_api_key",
+        "expected_retrieval_statuses": {
+          "client": "matched"
+        },
+        "expected_privacy_summary": true
+      }
+    },
+    {
+      "case_id": "missing_standard_clause",
+      "title": "Missing standard clause from matched template",
+      "description": "A synthetic contract-review document that matches the service-contract template but omits standard clauses.",
+      "document_path": "demo_cases/files/missing_standard_clause/missing_standard_clause.docx",
+      "document_profile": "contract_review",
+      "expected": {
+        "mode": "single_document",
+        "min_issue_count": 1,
+        "expected_issue_types": [
+          "MISSING_STANDARD_CLAUSE"
+        ],
+        "expected_absent_issue_types": [],
+        "expected_llm_mode": "mock",
+        "expected_fallback_reason": "no_api_key",
+        "expected_retrieval_statuses": {
+          "template": "matched",
+          "clause": "matched"
+        },
+        "expected_privacy_summary": true
+      }
+    },
+    {
+      "case_id": "llm_fallback_privacy_export",
+      "title": "LLM fallback plus privacy/export summary",
+      "description": "A synthetic lawyer-letter case used to show no-API-key mock fallback and privacy summary in all exports.",
+      "document_path": "demo_cases/files/llm_fallback_privacy_export/llm_fallback_privacy_export.docx",
+      "document_profile": "lawyer_letter",
+      "expected": {
+        "mode": "single_document",
+        "min_issue_count": 0,
+        "expected_issue_types": [],
+        "expected_absent_issue_types": [],
+        "expected_llm_mode": "mock",
+        "expected_fallback_reason": "no_api_key",
+        "expected_privacy_summary": true
+      }
+    }
+  ]
+}

@@ -7,10 +7,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from app.errors import UnsupportedFileTypeError, UserFacingError
+from app.errors import UserFacingError
 from app.config.review_config import DEFAULT_CONFIG_PATH, VALID_RISK_TYPES, export_config, load_review_config, load_review_config_with_status, validate_config_data
 from app.config.rule_config_service import import_rules_with_history, restore_default_rules_with_history
-from app.extractors.external_review_fields import build_external_review_fields
 from app.manual_review import (
     REVIEW_STATUSES,
     default_manual_records,
@@ -18,17 +17,20 @@ from app.manual_review import (
     manual_records_to_editor_dataframe,
     source_options_for_fields,
 )
-from app.parsers.docx_parser import parse_docx
-from app.parsers.excel_parser import parse_base_info, parse_evidence_index
-from app.parsers.ocr_pdf_parser import parse_pdf_with_ocr
-from app.parsers.pdf_parser import is_scanned_pdf, parse_pdf
+from app.privacy import build_privacy_summary, default_privacy_policy
 from app.reports.docx_annotation import annotated_docx_filename, build_annotated_docx
 from app.reports.case_package import build_case_review_package_zip
 from app.reports.docx_report import build_docx_report
-from app.reports.excel_report import build_excel_report, external_fields_to_dataframe, findings_to_dataframe, manual_records_to_dataframe
+from app.reports.excel_report import (
+    build_excel_report,
+    external_fields_to_dataframe,
+    findings_to_dataframe,
+    knowledge_context_to_dataframe,
+    manual_records_to_dataframe,
+    structured_extraction_to_dataframe,
+)
 from app.reports.html_report import build_html_report
 from app.reports.package_export import build_review_package_zip
-from app.review_engine import review_document, review_single_document
 from app.storage.sqlite_store import (
     create_case_workspace,
     delete_case_workspace,
@@ -43,8 +45,11 @@ from app.storage.sqlite_store import (
     save_review_run,
     list_rule_config_history,
 )
+from app.storage.audit_log import list_audit_events, save_audit_event
+from app.storage.review_history import list_review_history, save_review_history
 from app.workflows.batch_review import BatchInputFile, run_batch_review
 from app.workflows.case_differences import build_case_field_differences
+from app.workflows.single_review import run_single_review_workflow
 
 
 st.set_page_config(page_title="律师文书基础信息复核助手 Demo", layout="wide")
@@ -59,16 +64,6 @@ def _save_upload(uploaded_file) -> Path:
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(uploaded_file.getbuffer())
         return Path(tmp.name)
-
-
-def _parse_document(path: Path, enable_ocr: bool = False):
-    if path.suffix.lower() == ".docx":
-        return parse_docx(path)
-    if path.suffix.lower() == ".pdf":
-        if enable_ocr:
-            return parse_pdf_with_ocr(path)
-        return parse_pdf(path)
-    raise UnsupportedFileTypeError("文书仅支持 .docx 或 .pdf。请转换格式后重新上传。")
 
 
 def _validate_uploaded_file(uploaded_file, label: str, suffixes: set[str]) -> list[str]:
@@ -96,6 +91,66 @@ def _cleanup(paths: list[Path]) -> None:
 
 def _download_suffix() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def _safe_save_audit_event(
+    event_type: str,
+    *,
+    review_run_id: str | None = None,
+    source_filename: str | None = None,
+    event_summary: str = "",
+    metadata: dict | None = None,
+) -> int | None:
+    try:
+        return save_audit_event(
+            event_type,
+            review_run_id=review_run_id,
+            source_filename=source_filename,
+            event_summary=event_summary,
+            metadata=metadata or {},
+        )
+    except Exception:
+        return None
+
+
+def _safe_save_review_history(metadata: dict | None, review_run_id: str) -> int | None:
+    if not metadata:
+        return None
+    payload = dict(metadata)
+    payload["review_run_id"] = review_run_id
+    try:
+        return save_review_history(payload)
+    except Exception:
+        return None
+
+
+def _record_export_event_once(
+    event_type: str,
+    *,
+    review_id: str | None,
+    source_filename: str | None,
+    metadata: dict,
+) -> None:
+    if not review_id:
+        return
+    key = f"audit_event_recorded_{review_id}_{event_type}"
+    if st.session_state.get(key):
+        return
+    _safe_save_audit_event(
+        event_type,
+        review_run_id=review_id,
+        source_filename=source_filename,
+        event_summary=f"{event_type} prepared for Streamlit download.",
+        metadata={**metadata, "prepared_in_ui": True},
+    )
+    st.session_state[key] = True
+
+
+def _privacy_summary_rows() -> list[dict[str, str]]:
+    return [
+        {"Item": key, "Value": value}
+        for key, value in build_privacy_summary(default_privacy_policy()).items()
+    ]
 
 
 def _selected_case_id() -> str | None:
@@ -147,10 +202,22 @@ def _filter_findings(findings):
     return filtered
 
 
-def _store_current_review(review_id, findings, external_fields, manual_records, mode_label, source_docx_bytes=None, source_filename=None) -> None:
+def _store_current_review(
+    review_id,
+    findings,
+    external_fields,
+    manual_records,
+    mode_label,
+    source_docx_bytes=None,
+    source_filename=None,
+    structured_extraction=None,
+    knowledge_context=None,
+) -> None:
     st.session_state["findings"] = findings
     st.session_state["external_fields"] = external_fields
     st.session_state["manual_records"] = manual_records
+    st.session_state["structured_extraction"] = structured_extraction
+    st.session_state["knowledge_context"] = knowledge_context
     st.session_state["review_id"] = review_id
     st.session_state["mode_label"] = mode_label
     st.session_state["source_docx_bytes"] = source_docx_bytes
@@ -170,6 +237,8 @@ def _render_review_result() -> None:
 
     external_fields = st.session_state.get("external_fields", [])
     manual_records = st.session_state.get("manual_records", [])
+    structured_extraction = st.session_state.get("structured_extraction")
+    knowledge_context = st.session_state.get("knowledge_context")
     review_id = st.session_state.get("review_id")
     mode_label = st.session_state.get("mode_label", "完整复核模式")
     if st.session_state.get("last_run_at"):
@@ -208,6 +277,7 @@ def _render_review_result() -> None:
     else:
         st.info("当前文书未抽取到可展示的外部复核字段。")
 
+    _render_ai_context(structured_extraction, knowledge_context)
     _render_manual_review_editor(review_id, external_fields, manual_records)
     _render_downloads(
         findings,
@@ -220,7 +290,34 @@ def _render_review_result() -> None:
         st.session_state.get("config_version"),
         st.session_state.get("document_profile"),
         st.session_state.get("config_updated_at"),
+        structured_extraction,
+        knowledge_context,
     )
+
+
+def _render_ai_context(structured_extraction, knowledge_context) -> None:
+    st.subheader("AI / RAG Context")
+    if structured_extraction is not None:
+        st.caption(
+            f"Structured extraction mode: {structured_extraction.mode} | model: {structured_extraction.model_name or 'mock'}"
+        )
+        st.dataframe(
+            structured_extraction_to_dataframe(structured_extraction),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No structured extraction context is available for this review.")
+
+    if knowledge_context is not None:
+        st.caption("Retrieved knowledge base matches are sourced only from the local synthetic demo KB.")
+        st.dataframe(
+            knowledge_context_to_dataframe(knowledge_context),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No retrieval context is available for this review.")
 
 
 def _render_manual_review_editor(review_id, external_fields, manual_records) -> None:
@@ -253,10 +350,53 @@ def _render_manual_review_editor(review_id, external_fields, manual_records) -> 
         st.info("当前没有可处理的待外部复核字段。")
 
 
-def _render_downloads(findings, external_fields, manual_records, review_id, mode_label, source_docx_bytes=None, source_filename=None, config_version=None, document_profile=None, config_updated_at=None) -> None:
-    excel_bytes = build_excel_report(findings, external_fields, manual_records, config_version=config_version, document_profile=document_profile, config_updated_at=config_updated_at)
-    html_report = build_html_report(findings, external_fields, manual_records, mode_label=mode_label, config_version=config_version, document_profile=document_profile, config_updated_at=config_updated_at)
-    docx_bytes = build_docx_report(findings, external_fields, manual_records, review_id=review_id, mode_label=mode_label, config_version=config_version, document_profile=document_profile, config_updated_at=config_updated_at)
+def _render_downloads(
+    findings,
+    external_fields,
+    manual_records,
+    review_id,
+    mode_label,
+    source_docx_bytes=None,
+    source_filename=None,
+    config_version=None,
+    document_profile=None,
+    config_updated_at=None,
+    structured_extraction=None,
+    knowledge_context=None,
+) -> None:
+    excel_bytes = build_excel_report(
+        findings,
+        external_fields,
+        manual_records,
+        config_version=config_version,
+        document_profile=document_profile,
+        config_updated_at=config_updated_at,
+        structured_extraction=structured_extraction,
+        knowledge_context=knowledge_context,
+    )
+    html_report = build_html_report(
+        findings,
+        external_fields,
+        manual_records,
+        mode_label=mode_label,
+        config_version=config_version,
+        document_profile=document_profile,
+        config_updated_at=config_updated_at,
+        structured_extraction=structured_extraction,
+        knowledge_context=knowledge_context,
+    )
+    docx_bytes = build_docx_report(
+        findings,
+        external_fields,
+        manual_records,
+        review_id=review_id,
+        mode_label=mode_label,
+        config_version=config_version,
+        document_profile=document_profile,
+        config_updated_at=config_updated_at,
+        structured_extraction=structured_extraction,
+        knowledge_context=knowledge_context,
+    )
     package_bytes = build_review_package_zip(
         findings,
         external_fields,
@@ -268,13 +408,46 @@ def _render_downloads(findings, external_fields, manual_records, review_id, mode
         config_version=config_version,
         document_profile=document_profile,
         config_updated_at=config_updated_at,
+        structured_extraction=structured_extraction,
+        knowledge_context=knowledge_context,
     )
     annotated_bytes = None
     if source_docx_bytes is not None and source_filename:
         annotated_bytes = build_annotated_docx(source_docx_bytes, findings, external_fields, manual_records)
     suffix = _download_suffix()
+    export_metadata = {
+        "mode_label": mode_label,
+        "finding_count": len(findings),
+        "external_field_count": len(external_fields),
+        "manual_record_count": len(manual_records),
+    }
+    _record_export_event_once(
+        "export_excel",
+        review_id=review_id,
+        source_filename=source_filename,
+        metadata={**export_metadata, "format": "xlsx", "byte_size": len(excel_bytes)},
+    )
+    _record_export_event_once(
+        "export_html",
+        review_id=review_id,
+        source_filename=source_filename,
+        metadata={**export_metadata, "format": "html", "byte_size": len(html_report.encode("utf-8"))},
+    )
+    _record_export_event_once(
+        "export_docx",
+        review_id=review_id,
+        source_filename=source_filename,
+        metadata={**export_metadata, "format": "docx", "byte_size": len(docx_bytes)},
+    )
+    _record_export_event_once(
+        "export_zip",
+        review_id=review_id,
+        source_filename=source_filename,
+        metadata={**export_metadata, "format": "zip", "byte_size": len(package_bytes)},
+    )
 
     st.subheader("下载")
+    st.caption("导出文件会包含 privacy summary；默认报告不强制移除 synthetic issue text，请勿用于真实法律材料。")
     dl1, dl2, dl3, dl4, dl5 = st.columns(5)
     with dl1:
         st.download_button("下载 Excel 复核清单", data=excel_bytes, file_name=f"legal_fact_review_findings_{suffix}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -339,6 +512,18 @@ def render_single_review_page() -> None:
 
         temp_paths: list[Path] = []
         try:
+            _safe_save_audit_event(
+                "run_review_started",
+                source_filename=doc_file.name,
+                event_summary="Single review started.",
+                metadata={
+                    "document_profile": document_profile,
+                    "selected_case_id": selected_case_id,
+                    "has_base_info": base_file is not None,
+                    "has_evidence_index": evidence_file is not None,
+                    "enable_ocr": enable_ocr,
+                },
+            )
             source_docx_bytes = doc_file.getvalue() if Path(doc_file.name).suffix.lower() == ".docx" else None
             doc_path = _save_upload(doc_file)
             temp_paths = [doc_path]
@@ -346,23 +531,87 @@ def render_single_review_page() -> None:
             evidence_path = _save_upload(evidence_file) if evidence_file is not None else None
             temp_paths.extend([path for path in [base_path, evidence_path] if path is not None])
 
-            if doc_path.suffix.lower() == ".pdf" and is_scanned_pdf(doc_path) and not enable_ocr:
-                st.warning("该 PDF 可能是扫描件，普通文本提取结果较少。可勾选 OCR 识别后重试。")
-            chunks = _parse_document(doc_path, enable_ocr=enable_ocr)
-            external_fields = build_external_review_fields(chunks, config=config)
-            if base_path and evidence_path:
-                mode_label = "完整复核模式"
-                findings = review_document(chunks, parse_base_info(base_path), parse_evidence_index(evidence_path), config=config, document_profile=document_profile)
-            else:
-                mode_label = "单文书字段抽取模式"
-                findings = review_single_document(chunks, config=config)
-            review_id = save_review_run(findings, external_fields=external_fields, case_id=selected_case_id, file_name=doc_file.name, mode_label=mode_label, config_version=config.config_version, document_profile=document_profile)
+            workflow_result = run_single_review_workflow(
+                doc_path,
+                base_info_path=base_path,
+                evidence_index_path=evidence_path,
+                enable_ocr=enable_ocr,
+                config=config,
+                document_profile=document_profile,
+                source_filename=doc_file.name,
+            )
+            for message in workflow_result.warnings:
+                st.warning(message)
+            if workflow_result.errors or workflow_result.review_result is None:
+                _safe_save_audit_event(
+                    "run_review_failed",
+                    source_filename=doc_file.name,
+                    event_summary="; ".join(workflow_result.errors) or "Single review failed.",
+                    metadata={**workflow_result.audit_metadata, "warnings": workflow_result.warnings},
+                )
+                st.error("复核无法完成：")
+                for message in workflow_result.errors:
+                    st.write(f"- {message}")
+                st.stop()
+
+            review_result = workflow_result.review_result
+            export_context = workflow_result.export_context
+            mode_label = export_context.get("mode_label", workflow_result.mode_label)
+            findings = review_result.findings
+            external_fields = review_result.external_fields
+            review_id = save_review_run(
+                findings,
+                external_fields=external_fields,
+                case_id=selected_case_id,
+                file_name=doc_file.name,
+                mode_label=mode_label,
+                config_version=export_context.get("config_version", config.config_version),
+                document_profile=export_context.get("document_profile", document_profile),
+                structured_extraction=export_context.get("structured_extraction"),
+                knowledge_context=export_context.get("knowledge_context"),
+            )
+            history_id = _safe_save_review_history(workflow_result.history_metadata, review_id)
+            _safe_save_audit_event(
+                "run_review_succeeded",
+                review_run_id=review_id,
+                source_filename=doc_file.name,
+                event_summary="Single review succeeded.",
+                metadata={
+                    **workflow_result.audit_metadata,
+                    "history_id": history_id,
+                    "finding_count": len(findings),
+                    "external_field_count": len(external_fields),
+                    "warnings": workflow_result.warnings,
+                },
+            )
             manual_records = default_manual_records(review_id, external_fields)
             save_manual_review_records(manual_records)
-            _store_current_review(review_id, findings, external_fields, manual_records, mode_label, source_docx_bytes, doc_file.name if source_docx_bytes else None)
+            _store_current_review(
+                review_id,
+                findings,
+                external_fields,
+                manual_records,
+                mode_label,
+                source_docx_bytes,
+                doc_file.name if source_docx_bytes else None,
+                export_context.get("structured_extraction"),
+                export_context.get("knowledge_context"),
+            )
         except UserFacingError as exc:
+            _safe_save_audit_event(
+                "run_review_failed",
+                source_filename=doc_file.name if doc_file else None,
+                event_summary=str(exc),
+                metadata={"stage": "single_review_ui", "document_profile": document_profile},
+            )
             st.error(str(exc))
         except Exception:
+            _safe_save_audit_event(
+                "run_review_failed",
+                source_filename=doc_file.name if doc_file else None,
+                event_summary="复核过程中出现未预期错误。请检查文件是否损坏，或使用示例数据验证环境是否正常。",
+                metadata={"stage": "single_review_ui", "document_profile": document_profile},
+            )
             st.error("复核过程中出现未预期错误。请检查文件是否损坏，或使用示例数据验证环境是否正常。")
         finally:
             _cleanup(temp_paths)
@@ -480,8 +729,76 @@ def render_batch_review_page() -> None:
         )
 
 
+def _render_recent_review_history() -> None:
+    st.subheader("最近复核记录")
+    try:
+        records = list_review_history(limit=10)
+    except Exception:
+        st.warning("最近复核记录读取失败。复核功能不受影响。")
+        return
+    if not records:
+        st.info("暂无 lightweight review history。")
+        return
+
+    st.caption("这里只展示本地 metadata：不保存完整正文、完整 extracted text 或完整 LLM response。")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "时间": record.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    "文件名": record.source_filename or "",
+                    "模式": record.mode_label,
+                    "review_id": record.review_run_id or "",
+                    "issues": record.issue_count,
+                    "high": record.severity_high_count,
+                    "medium": record.severity_medium_count,
+                    "low": record.severity_low_count,
+                    "LLM": record.llm_mode,
+                    "fallback": record.llm_fallback_reason or "",
+                    "retrieval": record.retrieval_backend,
+                    "retrieval_status": record.retrieval_status_summary,
+                    "hash": record.document_hash[:12],
+                }
+                for record in records
+            ]
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    review_ids = list(dict.fromkeys(record.review_run_id for record in records if record.review_run_id))
+    if review_ids:
+        selected_audit_review = st.selectbox("查看 audit events", ["不查看"] + review_ids, key="audit_events_review_id")
+        if selected_audit_review != "不查看":
+            try:
+                events = list_audit_events(limit=20, review_run_id=selected_audit_review)
+            except Exception:
+                st.warning("Audit events 读取失败。")
+                return
+            if events:
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "时间": event.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                                "事件": event.event_type,
+                                "文件名": event.source_filename or "",
+                                "摘要": event.event_summary,
+                            }
+                            for event in events
+                        ]
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.info("该 review 暂无 audit events。")
+
+
 def render_history_page() -> None:
     st.header("历史复核记录")
+    _render_recent_review_history()
+    st.subheader("历史详情")
     case_id = _selected_case_id()
     only_current_case = st.checkbox("仅查看当前案件", value=bool(case_id), disabled=not bool(case_id))
     rows = list_review_runs(case_id=case_id if only_current_case else None)
@@ -494,7 +811,15 @@ def render_history_page() -> None:
     if not detail:
         st.error("未找到该历史记录。")
         return
-    _store_current_review(detail.review_id, detail.findings, detail.external_fields, detail.manual_records, detail.mode_label)
+    _store_current_review(
+        detail.review_id,
+        detail.findings,
+        detail.external_fields,
+        detail.manual_records,
+        detail.mode_label,
+        structured_extraction=detail.structured_extraction,
+        knowledge_context=detail.knowledge_context,
+    )
     st.session_state["config_version"] = detail.config_version
     st.session_state["document_profile"] = detail.document_profile
     st.info("历史记录未保存原文书正文，因此只能重新导出摘要和复核包，不能生成 Word 复核提示版。")
@@ -514,9 +839,12 @@ def render_settings_page() -> None:
         - 本工具默认本地运行，不上传文件到第三方服务。
         - 所有 findings 都是“建议人工复核”的线索，不构成法律意见。
         - 案件工作区只保存案件信息、文书元数据、复核结果、待外部复核字段和人工记录，不保存完整原文书正文。
+        - Review History / Audit Log 只保存本地轻量 metadata 和事件摘要，不保存完整 extracted text、完整 prompt 或完整 LLM response。
         - 案件内字段差异提示仅表示不同文书之间字段不一致，需人工判断是否属于正常版本差异。
         """
     )
+    st.subheader("当前 Privacy Policy 摘要")
+    st.dataframe(pd.DataFrame(_privacy_summary_rows()), use_container_width=True, hide_index=True)
 
 
 def render_rule_config_page() -> None:

@@ -1,0 +1,13 @@
+{
+  "id": "client-star-river-tech",
+  "title": "上海星河科技股份有限公司",
+  "legal_name": "上海星河科技股份有限公司",
+  "aliases": ["上海星河科技有限公司", "星河科技"],
+  "credit_code": "91310000MA1K000001",
+  "legal_representative": "张明远",
+  "registered_address": "上海市浦东新区星港路88号12层",
+  "industry": "企业软件与数据服务",
+  "preferred_contract_prefixes": ["HT-2024-SH", "MSA-SH-"],
+  "keywords": ["软件服务", "SaaS", "企业客户", "数据平台"],
+  "summary": "Synthetic enterprise software client profile for demo use only."
+}

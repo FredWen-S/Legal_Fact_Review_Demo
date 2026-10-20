@@ -22,7 +22,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 def _placeholder_pattern(config=None) -> re.Pattern[str]:
     config = config or load_review_config()
     patterns = config.placeholder_patterns or ["待补充", "X{2,}", "x{2,}", "某某", "202X", "20XX", r"【\s*】", "____+"]
-    return re.compile("|".join(patterns))
+    try:
+        return re.compile("|".join(patterns))
+    except re.error as exc:
+        raise ValueError(f"占位符正则配置无效：{exc}") from exc
 
 
 def extract_by_regex(chunks: list[TextChunk], config=None) -> list[ExtractedItem]:

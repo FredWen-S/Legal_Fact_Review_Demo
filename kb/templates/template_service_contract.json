@@ -1,0 +1,14 @@
+{
+  "id": "template-service-contract",
+  "title": "企业服务合同模板",
+  "summary": "Standard bilateral service contract template for enterprise software and delivery work.",
+  "document_type": "contract_review",
+  "keywords": ["合同", "甲方", "乙方", "服务", "付款", "验收", "合同编号"],
+  "required_clause_ids": [
+    "clause-payment-terms",
+    "clause-confidentiality",
+    "clause-dispute-resolution",
+    "clause-invoice-acceptance"
+  ],
+  "contract_prefixes": ["HT-2024-SH", "SC-2024-HZ", "DATA-BJ-"]
+}

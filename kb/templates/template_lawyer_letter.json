@@ -1,0 +1,11 @@
+{
+  "id": "template-lawyer-letter",
+  "title": "律师函模板",
+  "summary": "Synthetic demand-letter template for payment reminder and breach notice scenarios.",
+  "document_type": "lawyer_letter",
+  "keywords": ["律师函", "催告", "支付", "履行", "违约"],
+  "required_clause_ids": [
+    "clause-payment-terms"
+  ],
+  "contract_prefixes": []
+}

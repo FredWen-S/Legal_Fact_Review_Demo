@@ -1,0 +1,13 @@
+{
+  "id": "client-yunzhou-data",
+  "title": "北京云舟数据研究院有限公司",
+  "legal_name": "北京云舟数据研究院有限公司",
+  "aliases": ["云舟数据", "云舟研究院"],
+  "credit_code": "91110108MA7Y000031",
+  "legal_representative": "林澈",
+  "registered_address": "北京市海淀区知春路77号B座9层",
+  "industry": "数据治理与研究服务",
+  "preferred_contract_prefixes": ["DATA-BJ-", "RES-BJ-"],
+  "keywords": ["数据治理", "研究服务", "咨询", "报告"],
+  "summary": "Synthetic research and data-governance client profile."
+}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "律师文书基础信息与关键事实复核助手",
-  "version": "0.5.0-dev",
+  "productName": "LegalFactReview",
+  "version": "0.6.0-rc1",
   "identifier": "com.legalfactreview.desktop",
   "build": {
     "beforeDevCommand": "npm run serve",
@@ -25,7 +25,18 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "resources": {
+      "resources/LegalFactReview": "resources/LegalFactReview",
+      "resources/python": "resources/python"
+    },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "displayLanguageSelector": false
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

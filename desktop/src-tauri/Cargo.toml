@@ -1,6 +1,6 @@
 [package]
 name = "legal-fact-review-desktop"
-version = "0.5.0-dev"
+version = "0.6.0-rc1"
 description = "Desktop shell for LegalFactReview"
 authors = ["LegalFactReview"]
 edition = "2021"

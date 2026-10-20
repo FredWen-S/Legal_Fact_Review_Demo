@@ -1,12 +1,12 @@
 # 律师文书基础信息与关键事实复核助手：快速启动
 
-当前开发版本：`v0.5.0-dev`
+当前演示候选版本：`v0.6.0-rc1`。旧版 `v0.5.0` portable 包的启动方式仍可参考本文对应说明。
 
 ## 1. 如何启动
 
-运行要求：Python 3.10-3.12。v0.4.0-rc1 Windows portable 推荐使用 Python 3.11 或 3.12。若交付包包含 `wheelhouse/`，wheelhouse 必须与目标 Python 版本匹配，例如 cp312 wheelhouse 必须使用 Python 3.12。
+运行要求：Python 3.10-3.12，推荐 Python 3.12；不支持 Python 3.13。若交付包包含 `wheelhouse/`，wheelhouse 必须与目标 Python 版本匹配，例如 cp312 wheelhouse 必须使用 Python 3.12。
 
-1. 解压 `LegalFactReview_v0.4.0-rc1_windows_portable.zip`。
+1. 解压 `LegalFactReview_v0.5.0_windows_portable.zip`。
 2. 打开 `LegalFactReview` 文件夹。
 3. 双击 `start.bat`。
 4. 首次启动会自动创建 `.venv` 并安装依赖，可能需要几分钟。
@@ -27,6 +27,10 @@ http://localhost:8501
 - 同时上传文书、基础信息表、证据目录：进入“完整复核模式”。
 - 如果 PDF 是扫描版，页面可能提示启用 OCR。OCR 需要额外安装可选依赖。
 - 如需按案件管理多份文书，可先在侧边栏进入“案件工作区”创建案件，再回到“单次复核”或“批量复核”。
+- 未配置 LLM API key 时，系统会使用本地 mock structured extraction，仍可完成离线 synthetic demo。
+- RAG 检索默认使用 lexical retrieval；如配置本地 embedding provider，可选启用 embedding retrieval。embedding 不可用时会自动回退到 lexical retrieval。
+- “历史记录”会展示本地 Review History / Audit Log metadata。它只保存文件名、hash、模式、issue 计数、LLM fallback、retrieval 状态和关键事件摘要，不保存完整正文、完整 extracted text、完整 prompt 或完整 LLM response。
+- 本地 privacy policy 会在 history/audit 落库前清洗 metadata，并在 HTML / Excel / Word / ZIP 导出中加入 privacy summary。默认报告仍保留 synthetic issue 展示，不把 demo 当作生产脱敏系统。
 
 示例文件在：
 
@@ -51,6 +55,19 @@ sample_data/
 如需长期留存，建议下载“完整复核包 ZIP”。
 
 案件工作区中还可以下载“案件级复核包”，其中包含案件复核汇总 Excel、案件复核报告 HTML，以及各单份文书复核包。
+
+## 4.0 Synthetic Demo / Evaluation Cases
+
+项目内置 5 个 synthetic demo/evaluation cases，用于面试演示和自动化回归测试。全部文件为本地合成数据，不需要 API key，不需要 embedding 模型，也不代表真实法律审查能力。
+
+```bash
+python scripts/run_demo_cases.py
+python scripts/run_demo_cases.py --case client_profile_mismatch
+python scripts/run_demo_cases.py --json
+python -m pytest tests/test_demo_cases.py -q
+```
+
+这些 case 覆盖 clean pass、缺字段/格式问题、RAG client profile mismatch、缺标准条款、LLM mock fallback 与 export privacy summary。
 
 ## 4.1 v0.2.0 案件工作区
 
@@ -90,7 +107,7 @@ sample_data/
 
 ## 5.1 桌面版启动
 
-v0.5.0-dev 新增 Tauri 桌面壳。桌面版会启动本地 Python / Streamlit 服务，并提供状态、日志和 data / exports / logs 目录入口。
+v0.5.0 提供 Tauri 桌面壳。桌面版会启动本地 Python / Streamlit 服务，并提供状态、日志和 data / exports / logs 目录入口。
 
 开发模式：
 
@@ -103,20 +120,23 @@ npm run dev
 也可直接运行：
 
 ```text
-python scripts/desktop_service.py status
-python scripts/desktop_service.py start
-python scripts/desktop_service.py stop
+py -3.12 scripts/desktop_service.py status
+py -3.12 scripts/desktop_service.py start
+py -3.12 scripts/desktop_service.py stop
 ```
 
 桌面版不改变复核规则，不保存完整上传文书正文，不接入外部 API。详细说明见 `docs/桌面版说明.md`。
+
+v0.6.0-rc1 提供 Windows installer / exe 打包候选路线。若安装器内置 Python 3.12，用户无需单独安装 Python；若安装器未内置 Python，仍需安装 Python 3.10-3.12，推荐 Python 3.12。
 
 | 版本 | 启动方式 | 适合对象 |
 | --- | --- | --- |
 | Portable Streamlit 版 | 双击 `start.bat` | 稳定演示、低依赖交付 |
 | Tauri 桌面壳版 | 打开桌面壳，再启动本地服务 | 更接近桌面应用体验 |
+| Tauri Installer 版 | 安装后从开始菜单或桌面入口启动 | 更接近普通桌面软件 |
 | 开发者模式 | `streamlit run app/main.py` / `npm run dev` | 开发调试 |
 
-v0.5.0-rc1 桌面壳仍依赖本地 Python 服务，不是完全独立 exe。核心复核功能仍由 Python / Streamlit 提供。
+v0.5.0 桌面壳仍依赖本地 Python 服务，不是完全独立 exe。核心复核功能仍由 Python / Streamlit 提供。
 
 ## 6. 常见问题
 
@@ -186,6 +206,10 @@ OCR 结果只是辅助抽取。请在人工复核工作区填写人工确认值�
 data/review_runs.sqlite
 ```
 
+Review History / Audit Log 也保存在这个本地 SQLite 文件中。它用于 synthetic demo 的可解释性展示，不是生产合规审计系统。
+
+落库前会移除 `document_text`、`extracted_text`、`prompt`、`raw_response`、`llm_response` 等高风险 metadata 字段，并对 email、手机号、长 ID 类值做基础 mask。这只是本地 demo 隐私边界，不是生产 DLP / 合规系统。
+
 ### 是否会上传文件到互联网？
 
 不会。默认本地运行，不接入外部 API，不上传文书到第三方服务。
@@ -194,14 +218,28 @@ data/review_runs.sqlite
 
 不能。本工具只做辅助复核和工作底稿整理，不构成法律意见，最终判断由律师或相关人员完成。
 
+本项目使用 synthetic 示例文书和 synthetic KB，不应加入真实客户资料，也不应作为生产法律系统对外承诺准确性。
+
+### 是否必须安装 embedding 模型？
+
+不必须。默认检索后端是 lexical，不需要下载模型。可选 embedding retrieval 仅用于作品集增强：
+
+```text
+RAG_RETRIEVAL_BACKEND=embedding
+RAG_EMBEDDING_PROVIDER=local
+RAG_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+```
+
+如果未安装 `sentence-transformers`、模型加载失败或 embedding 计算失败，系统会自动回退到 lexical retrieval。
+
 ## 发布验证 Python 要求
 
-v0.5.0-rc1 发布验证请使用 Python 3.12。若系统默认 `python` 是 Python 3.13，请不要直接运行 `python -m pytest`。
+v0.5.0 发布验证请使用 Python 3.12。若系统默认 `python` 是 Python 3.13，请不要直接运行 `python -m pytest`。
 
 推荐命令：
 
 ```bash
-py -3.12 -m pytest -q
+python -m pytest tests/test_extractors.py tests/test_validators.py tests/test_reports.py tests/test_manual_review.py tests/test_single_document_mode.py tests/test_llm_rag_pipeline.py tests/test_case_workspace.py tests/test_rule_config_center.py tests/test_docx_package_export.py tests/test_docx_annotation.py tests/test_single_review_workflow.py tests/test_embedding_retrieval.py tests/test_review_history.py tests/test_audit_log.py tests/test_redaction_policy.py tests/test_privacy_storage.py tests/test_privacy_exports.py tests/test_demo_cases.py -q
 py -3.12 scripts/acceptance_check.py
 py -3.12 scripts/build_desktop_release.py
 ```

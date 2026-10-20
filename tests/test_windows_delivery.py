@@ -154,6 +154,8 @@ def test_build_release_zip_creates_clean_zip(tmp_path: Path, monkeypatch):
 
 
 def test_release_version_suffix_normalization():
+    assert normalize_version_suffix(None) == "v0.5.0_windows_portable"
+    assert normalize_version_suffix("v0.5.0") == "v0.5.0_windows_portable"
     assert normalize_version_suffix("v0.4.0-rc1") == "v0.4.0-rc1_windows_portable"
     assert normalize_version_suffix("v0.4.0-rc1_windows_portable") == "v0.4.0-rc1_windows_portable"
 
@@ -164,5 +166,26 @@ def test_verify_release_script_exists_and_reports_stages():
     assert "pytest" in verify_release
     assert "acceptance_check" in verify_release
     assert "build_desktop_release" in verify_release
+    assert "tempfile.TemporaryDirectory" in verify_release
+    assert "ROOT / \"tmp\"" not in verify_release
+    assert "--ignore=tmp" in verify_release
     assert "[RUN]" in verify_release
     assert "[FAIL]" in verify_release
+
+
+def test_pytest_config_limits_collection_to_tests():
+    pytest_ini = (ROOT / "pytest.ini").read_text(encoding="utf-8")
+
+    assert "testpaths = tests" in pytest_ini
+    assert "tmp" in pytest_ini
+    assert "dist" in pytest_ini
+    assert "desktop/src-tauri/target" in pytest_ini
+    assert "node_modules" in pytest_ini
+
+
+def test_v050_release_docs_exist():
+    release_notes = ROOT / "docs" / "releases" / "v0.5.0.md"
+    checklist = ROOT / "docs" / "releases" / "release_checklist_v0.5.0.md"
+
+    assert release_notes.exists()
+    assert checklist.exists()

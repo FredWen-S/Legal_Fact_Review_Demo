@@ -2,15 +2,18 @@ from app.extractors.external_review_fields import build_external_review_fields
 from app.models.schemas import TextChunk
 from app.reports.excel_report import build_excel_report, external_fields_to_dataframe
 from app.reports.html_report import build_html_report
-from app.review_engine import review_single_document
+from app.review_engine import review_single_document, review_single_document_result
 
 
 def _single_document_chunks():
     return [
         TextChunk(text="案号：（2024）沪0115民初12345号", location="段落1"),
-        TextChunk(text="原告：上海星河科技有限公司，统一社会信用代码：91310000MA1K000001，身份证号：110101199001011234。", location="段落2"),
-        TextChunk(text="法定代表人：张三。住所地：上海市浦东新区示例路99号。", location="段落3"),
-        TextChunk(text="诉讼请求：请求支付人民币1280000元，利息自2024年6月1日起算。", location="段落4"),
+        TextChunk(
+            text="原告：上海星河科技股份有限公司，统一社会信用代码：91310000MA1K000001，身份证号：110101199001011234。",
+            location="段落2",
+        ),
+        TextChunk(text="法定代表人：张明远。住所地：上海市浦东新区星港路88号12层。", location="段落3"),
+        TextChunk(text="诉讼请求：请求支付人民币1280000元，利息自2024年6月1日起计算。", location="段落4"),
         TextChunk(text="证据7：付款催告函。其他事项：待补充。", location="段落5"),
     ]
 
@@ -43,11 +46,21 @@ def test_external_review_fields_mask_sensitive_values():
 
 
 def test_single_document_reports_generate():
-    chunks = _single_document_chunks()
-    findings = review_single_document(chunks)
-    fields = build_external_review_fields(chunks)
-    excel_bytes = build_excel_report(findings, fields)
-    html = build_html_report(findings, fields, mode_label="单文书字段抽取模式")
+    result = review_single_document_result(_single_document_chunks(), document_profile="civil_complaint")
+    excel_bytes = build_excel_report(
+        result.findings,
+        result.external_fields,
+        structured_extraction=result.structured_extraction,
+        knowledge_context=result.knowledge_context,
+    )
+    html = build_html_report(
+        result.findings,
+        result.external_fields,
+        mode_label="单文书字段抽取模式",
+        structured_extraction=result.structured_extraction,
+        knowledge_context=result.knowledge_context,
+    )
     assert excel_bytes[:2] == b"PK"
-    assert "待外部复核字段清单" in html
-    assert "单文书字段抽取模式" in html
+    assert "Review Workbench / 待外部复核字段" in html
+    assert "Structured Extraction / 结构化抽取" in html
+    assert "Retrieved Knowledge / 检索知识" in html

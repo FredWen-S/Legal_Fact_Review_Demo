@@ -15,7 +15,7 @@ from scripts.python_selector import find_supported_python
 
 
 DIST_ROOT = ROOT / "dist"
-PACKAGE_NAME = "LegalFactReview_v0.5.0-rc1_desktop"
+PACKAGE_NAME = "LegalFactReview_v0.5.0_desktop"
 EXCLUDED_DIR_NAMES = {
     ".git",
     ".venv",

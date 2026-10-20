@@ -5,7 +5,18 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from app.models.schemas import CaseDocument, CaseWorkspace, ExtractedReviewField, ManualReviewRecord, ReviewFinding, ReviewRunDetail, ReviewRunSummary, RuleConfigHistory
+from app.models.schemas import (
+    CaseDocument,
+    CaseWorkspace,
+    ExtractedReviewField,
+    KnowledgeContext,
+    ManualReviewRecord,
+    ReviewFinding,
+    ReviewRunDetail,
+    ReviewRunSummary,
+    RuleConfigHistory,
+    StructuredExtractionResult,
+)
 from app.utils import stable_id
 
 
@@ -82,6 +93,46 @@ def init_db(path: str | Path = "data/review_runs.sqlite") -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS review_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            review_run_id TEXT,
+            source_filename TEXT,
+            document_hash TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            mode_label TEXT NOT NULL,
+            config_version TEXT,
+            document_profile TEXT,
+            issue_count INTEGER NOT NULL DEFAULT 0,
+            severity_high_count INTEGER NOT NULL DEFAULT 0,
+            severity_medium_count INTEGER NOT NULL DEFAULT 0,
+            severity_low_count INTEGER NOT NULL DEFAULT 0,
+            severity_info_count INTEGER NOT NULL DEFAULT 0,
+            llm_mode TEXT NOT NULL DEFAULT 'not_available',
+            llm_fallback_reason TEXT,
+            retrieval_backend TEXT NOT NULL DEFAULT 'lexical',
+            retrieval_status_summary TEXT NOT NULL DEFAULT 'not_available',
+            issue_type_summary_json TEXT NOT NULL DEFAULT '{}',
+            export_available INTEGER NOT NULL DEFAULT 0,
+            notes TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            review_run_id TEXT,
+            source_filename TEXT,
+            event_summary TEXT NOT NULL,
+            metadata_json TEXT NOT NULL DEFAULT '{}'
+        )
+        """
+    )
     _ensure_column(conn, "review_runs", "case_id", "TEXT")
     _ensure_column(conn, "review_runs", "document_id", "TEXT")
     _ensure_column(conn, "review_runs", "file_name", "TEXT")
@@ -93,6 +144,7 @@ def init_db(path: str | Path = "data/review_runs.sqlite") -> sqlite3.Connection:
     _ensure_column(conn, "review_runs", "external_fields_json", "TEXT DEFAULT '[]'")
     _ensure_column(conn, "review_runs", "config_version", "TEXT")
     _ensure_column(conn, "review_runs", "document_profile", "TEXT")
+    _ensure_column(conn, "review_runs", "review_context_json", "TEXT DEFAULT '{}'")
     conn.commit()
     return conn
 
@@ -272,6 +324,8 @@ def save_review_run(
     mode_label: str = "完整复核模式",
     config_version: str | None = None,
     document_profile: str | None = None,
+    structured_extraction: StructuredExtractionResult | None = None,
+    knowledge_context: KnowledgeContext | None = None,
 ) -> str:
     conn = init_db(path)
     try:
@@ -280,13 +334,14 @@ def save_review_run(
         medium = sum(1 for finding in findings if finding.severity == "medium")
         low = sum(1 for finding in findings if finding.severity == "low")
         fields = _sanitize_external_fields_for_storage(external_fields or [])
+        stored_structured_extraction = _sanitize_structured_extraction_for_storage(structured_extraction)
         cursor = conn.execute(
             """
             INSERT INTO review_runs (
                 created_at, finding_count, findings_json, case_id, document_id, file_name,
                 mode_label, high_count, medium_count, low_count, external_field_count, external_fields_json,
-                config_version, document_profile
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                config_version, document_profile, review_context_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 created_at,
@@ -303,6 +358,13 @@ def save_review_run(
                 json.dumps([field.model_dump() for field in fields], ensure_ascii=False),
                 config_version,
                 document_profile,
+                json.dumps(
+                    {
+                        "structured_extraction": stored_structured_extraction.model_dump() if stored_structured_extraction else None,
+                        "knowledge_context": knowledge_context.model_dump() if knowledge_context else None,
+                    },
+                    ensure_ascii=False,
+                ),
             ),
         )
         if case_id:
@@ -350,7 +412,7 @@ def get_review_run_detail(review_id: str, path: str | Path = "data/review_runs.s
                    r.finding_count, COALESCE(r.high_count, 0), COALESCE(r.medium_count, 0),
                    COALESCE(r.low_count, 0), COALESCE(r.external_field_count, 0),
                    COUNT(m.record_id) AS manual_record_count, COALESCE(r.config_version, ''), COALESCE(r.document_profile, ''), r.created_at,
-                   r.findings_json, COALESCE(r.external_fields_json, '[]')
+                   r.findings_json, COALESCE(r.external_fields_json, '[]'), COALESCE(r.review_context_json, '{}')
             FROM review_runs r
             LEFT JOIN case_workspaces c ON r.case_id = c.case_id
             LEFT JOIN manual_review_records m ON m.review_id = 'review-' || r.id
@@ -366,8 +428,20 @@ def get_review_run_detail(review_id: str, path: str | Path = "data/review_runs.s
     summary = _summary_from_row(row[:15])
     findings = [ReviewFinding(**item) for item in json.loads(row[15] or "[]")]
     external_fields = [ExtractedReviewField(**item) for item in json.loads(row[16] or "[]")]
+    review_context = json.loads(row[17] or "{}")
     manual_records = fetch_manual_review_records(review_id, path)
-    return ReviewRunDetail(**summary.model_dump(), findings=findings, external_fields=external_fields, manual_records=manual_records)
+    return ReviewRunDetail(
+        **summary.model_dump(),
+        findings=findings,
+        external_fields=external_fields,
+        manual_records=manual_records,
+        structured_extraction=StructuredExtractionResult(**review_context["structured_extraction"])
+        if review_context.get("structured_extraction")
+        else None,
+        knowledge_context=KnowledgeContext(**review_context["knowledge_context"])
+        if review_context.get("knowledge_context")
+        else None,
+    )
 
 
 def delete_review_run(review_id: str, path: str | Path = "data/review_runs.sqlite") -> None:
@@ -375,6 +449,8 @@ def delete_review_run(review_id: str, path: str | Path = "data/review_runs.sqlit
     conn = init_db(path)
     try:
         conn.execute("DELETE FROM manual_review_records WHERE review_id = ?", (review_id,))
+        conn.execute("DELETE FROM review_history WHERE review_run_id = ?", (review_id,))
+        conn.execute("DELETE FROM audit_logs WHERE review_run_id = ?", (review_id,))
         conn.execute("DELETE FROM review_runs WHERE id = ?", (numeric_id,))
         conn.commit()
     finally:
@@ -579,3 +655,11 @@ def _sanitize_external_fields_for_storage(fields: list[ExtractedReviewField]) ->
         context = field.role_or_context if field.role_or_context in safe_labels else None
         sanitized.append(field.model_copy(update={"role_or_context": context}))
     return sanitized
+
+
+def _sanitize_structured_extraction_for_storage(
+    extraction: StructuredExtractionResult | None,
+) -> StructuredExtractionResult | None:
+    if extraction is None:
+        return None
+    return extraction.model_copy(update={"raw_response": None})

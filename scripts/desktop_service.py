@@ -27,6 +27,32 @@ from scripts.windows.preflight_check import (
 DEFAULT_START_TIMEOUT_SECONDS = 45
 
 
+class ServicePython:
+    def __init__(self, candidate: PythonCandidate, bundled: bool) -> None:
+        self.candidate = candidate
+        self.bundled = bundled
+
+    @property
+    def command(self) -> tuple[str, ...]:
+        return self.candidate.command
+
+    @property
+    def executable(self) -> str:
+        return self.candidate.executable
+
+    @property
+    def version(self) -> str:
+        return self.candidate.version
+
+    @property
+    def major_minor(self) -> tuple[int, int]:
+        return self.candidate.major_minor
+
+    @property
+    def display_command(self) -> str:
+        return self.candidate.display_command
+
+
 def status(root: Path = ROOT) -> dict[str, Any]:
     pid_file = root / "logs" / "service.pid"
     port_file = root / "logs" / "current_port.txt"
@@ -57,16 +83,23 @@ def start(root: Path = ROOT, timeout_seconds: int = DEFAULT_START_TIMEOUT_SECOND
         return _error("当前目录缺少 requirements.txt。请确认桌面发布包完整。")
 
     try:
-        selected_python = find_supported_python()
+        selected_python = select_service_python(root)
         version_info = selected_python.major_minor
-        _append_log(root, f"Using Python: {selected_python.display_command}")
+        if selected_python.bundled:
+            _append_log(root, f"Using bundled Python: {selected_python.executable}")
+        else:
+            _append_log(root, f"Using system Python: {selected_python.executable or selected_python.display_command}")
         _append_log(root, f"Python version: {selected_python.version}")
         ensure_supported_python_version(version_info)
-        ensure_existing_venv_is_supported(root)
-        ensure_wheelhouse_matches_python(root, version_info)
         port = find_available_port()
-        _ensure_venv(root, selected_python)
-        _install_dependencies(root)
+        if selected_python.bundled:
+            streamlit_python = Path(selected_python.executable)
+        else:
+            ensure_existing_venv_is_supported(root)
+            ensure_wheelhouse_matches_python(root, version_info)
+            _ensure_venv(root, selected_python.candidate)
+            _install_dependencies(root)
+            streamlit_python = _venv_python(root)
     except SystemExit as exc:
         message = str(exc) or "启动前检查失败。"
         _append_log(root, f"ERROR: {message}")
@@ -79,7 +112,7 @@ def start(root: Path = ROOT, timeout_seconds: int = DEFAULT_START_TIMEOUT_SECOND
     env["PYTHONPATH"] = str(root)
     env["PYTHONIOENCODING"] = "utf-8"
     command = [
-        str(_venv_python(root)),
+        str(streamlit_python),
         "-m",
         "streamlit",
         "run",
@@ -184,6 +217,54 @@ def main(argv: list[str] | None = None) -> int:
 def _ensure_runtime_dirs(root: Path) -> None:
     for directory in [root / "data", root / "exports", root / "logs"]:
         directory.mkdir(parents=True, exist_ok=True)
+
+
+def select_service_python(root: Path) -> ServicePython:
+    bundled = _find_bundled_python(root)
+    if bundled:
+        version = _python_version(bundled)
+        candidate = PythonCandidate((str(bundled),), version, str(bundled))
+        if not candidate.executable:
+            raise SystemExit("内置 Python 路径无效。")
+        if not ensure_python_candidate_supported(candidate):
+            raise SystemExit("内置 Python 版本不受支持，请重新构建安装包。")
+        return ServicePython(candidate, bundled=True)
+    return ServicePython(find_supported_python(), bundled=False)
+
+
+def ensure_python_candidate_supported(candidate: PythonCandidate) -> bool:
+    try:
+        ensure_supported_python_version(candidate.major_minor)
+        return True
+    except SystemExit:
+        return False
+
+
+def _find_bundled_python(root: Path) -> Path | None:
+    candidates = [
+        root / "python" / "python.exe",
+        root.parent / "python" / "python.exe",
+        root.parent / "resources" / "python" / "python.exe",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path.resolve()
+    return None
+
+
+def _python_version(python: Path) -> str:
+    probe = "import sys; print('.'.join(map(str, sys.version_info[:3])))"
+    result = subprocess.run(
+        [str(python), "-c", probe],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(result.stderr.strip() or f"无法运行内置 Python：{python}")
+    return result.stdout.strip().splitlines()[-1]
 
 
 def _ensure_venv(root: Path, selected_python: PythonCandidate) -> None:

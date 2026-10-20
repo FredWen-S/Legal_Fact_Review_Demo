@@ -1,0 +1,9 @@
+{
+  "id": "template-civil-payment-complaint",
+  "title": "民事起诉状模板（应收款争议）",
+  "summary": "Synthetic complaint template focused on unpaid contract amounts and evidence references.",
+  "document_type": "civil_complaint",
+  "keywords": ["起诉状", "诉讼请求", "事实与理由", "证据", "拖欠", "合同"],
+  "required_clause_ids": [],
+  "contract_prefixes": []
+}

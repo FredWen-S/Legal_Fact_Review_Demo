@@ -20,7 +20,7 @@ from app.storage.sqlite_store import (
 )
 from app.workflows.batch_review import BatchInputFile, run_batch_review
 from app.workflows.case_differences import build_case_field_differences
-from scripts.generate_test_files import TEST_CASES_DIR, generate_test_files
+from scripts.generate_test_files import generate_test_files
 
 
 def test_case_workspace_schema(tmp_path: Path):
@@ -123,10 +123,11 @@ def test_review_run_can_link_case_and_history_can_query(tmp_path: Path):
 
 
 def test_batch_review_failure_does_not_block_successes(tmp_path: Path):
-    generate_test_files()
+    test_cases_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=test_cases_dir)
     db_path = tmp_path / "reviews.sqlite"
     case = create_case_workspace("批量案件", path=db_path)
-    case_dir = TEST_CASES_DIR / "case_08_case_workspace_batch"
+    case_dir = test_cases_dir / "case_08_case_workspace_batch"
     bad_file = tmp_path / "bad.docx"
     bad_file.write_text("not a docx", encoding="utf-8")
     files = [
@@ -143,10 +144,11 @@ def test_batch_review_failure_does_not_block_successes(tmp_path: Path):
 
 
 def test_case_package_excel_and_field_differences(tmp_path: Path):
-    generate_test_files()
+    test_cases_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=test_cases_dir)
     db_path = tmp_path / "reviews.sqlite"
     case = create_case_workspace("案件包测试", internal_case_no="CASE-08", path=db_path)
-    case_dir = TEST_CASES_DIR / "case_08_case_workspace_batch"
+    case_dir = test_cases_dir / "case_08_case_workspace_batch"
     files = [
         BatchInputFile(path=path, file_name=path.name, file_size=path.stat().st_size)
         for path in sorted(case_dir.glob("batch_document*.docx"))
@@ -177,10 +179,11 @@ def test_case_package_excel_and_field_differences(tmp_path: Path):
 
 
 def test_storage_does_not_save_full_document_text(tmp_path: Path):
-    generate_test_files()
+    test_cases_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=test_cases_dir)
     db_path = tmp_path / "reviews.sqlite"
     case = create_case_workspace("隐私测试", path=db_path)
-    case_dir = TEST_CASES_DIR / "case_08_case_workspace_batch"
+    case_dir = test_cases_dir / "case_08_case_workspace_batch"
     files = [BatchInputFile(path=case_dir / "batch_document_v1.docx", file_name="batch_document_v1.docx", file_size=(case_dir / "batch_document_v1.docx").stat().st_size)]
     run_batch_review(files, case_dir / "base_info.xlsx", case_dir / "evidence_index.xlsx", case.case_id, db_path=db_path)
 
@@ -195,10 +198,11 @@ def test_storage_does_not_save_full_document_text(tmp_path: Path):
 
 
 def test_single_document_case_has_no_field_differences(tmp_path: Path):
-    generate_test_files()
+    test_cases_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=test_cases_dir)
     db_path = tmp_path / "reviews.sqlite"
     case = create_case_workspace("单文书案件", path=db_path)
-    case_dir = TEST_CASES_DIR / "case_08_case_workspace_batch"
+    case_dir = test_cases_dir / "case_08_case_workspace_batch"
     file_path = case_dir / "batch_document_v1.docx"
     run_batch_review(
         [BatchInputFile(path=file_path, file_name=file_path.name, file_size=file_path.stat().st_size)],

@@ -1,0 +1,8 @@
+{
+  "id": "clause-confidentiality",
+  "title": "保密与数据安全条款",
+  "summary": "Requires confidential handling of client data and business materials.",
+  "body": "双方应对在履约过程中知悉的商业信息和数据资料承担保密义务，并采取合理的数据安全措施。",
+  "keywords": ["保密", "数据安全", "商业秘密", "信息安全"],
+  "presence_keywords": ["保密", "数据安全", "商业秘密"]
+}

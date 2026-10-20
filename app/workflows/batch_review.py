@@ -5,14 +5,13 @@ from pathlib import Path
 
 from app.config.review_config import ReviewRulesConfig, load_review_config
 from app.errors import UnsupportedFileTypeError, UserFacingError
-from app.extractors.external_review_fields import build_external_review_fields
 from app.manual_review import default_manual_records
 from app.models.schemas import ExtractedReviewField, ManualReviewRecord, ReviewFinding
 from app.parsers.docx_parser import parse_docx
 from app.parsers.excel_parser import parse_base_info, parse_evidence_index
 from app.parsers.ocr_pdf_parser import parse_pdf_with_ocr
 from app.parsers.pdf_parser import parse_pdf
-from app.review_engine import review_document, review_single_document
+from app.review_engine import review_document_result, review_single_document_result
 from app.storage.sqlite_store import save_case_document, save_manual_review_records, save_review_run
 
 
@@ -61,11 +60,22 @@ def run_batch_review(
     for item in files:
         try:
             chunks = _parse_document(item.path, enable_ocr=enable_ocr)
-            external_fields = build_external_review_fields(chunks, config=config)
             if base_info is not None and evidence_index is not None:
-                findings = review_document(chunks, base_info, evidence_index, config=config, document_profile=document_profile)
+                review_result = review_document_result(
+                    chunks,
+                    base_info,
+                    evidence_index,
+                    config=config,
+                    document_profile=document_profile,
+                )
             else:
-                findings = review_single_document(chunks, config=config)
+                review_result = review_single_document_result(
+                    chunks,
+                    config=config,
+                    document_profile=document_profile,
+                )
+            findings = review_result.findings
+            external_fields = review_result.external_fields
 
             document_id = None
             if case_id:
@@ -90,6 +100,8 @@ def run_batch_review(
                 mode_label=mode_label,
                 config_version=config.config_version,
                 document_profile=document_profile,
+                structured_extraction=review_result.structured_extraction,
+                knowledge_context=review_result.knowledge_context,
             )
             manual_records = default_manual_records(review_id, external_fields)
             save_manual_review_records(manual_records, db_path)

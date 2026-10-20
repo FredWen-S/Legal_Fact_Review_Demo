@@ -1,12 +1,13 @@
 {
   "name": "legal-fact-review-desktop",
-  "version": "0.5.0-dev",
+  "version": "0.6.0-rc1",
   "private": true,
   "type": "module",
   "scripts": {
     "serve": "node ./serve.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
+    "tauri:build": "tauri build",
     "tauri": "tauri"
   },
   "devDependencies": {

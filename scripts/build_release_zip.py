@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 import hashlib
 from pathlib import Path
 import sys
@@ -15,6 +14,7 @@ from scripts.build_portable import build_portable
 
 
 DIST_ROOT = ROOT / "dist"
+DEFAULT_VERSION = "v0.5.0"
 
 
 FORBIDDEN_PARTS = {".git", ".venv", "__pycache__", ".pytest_cache"}
@@ -23,7 +23,7 @@ FORBIDDEN_NAMES = {"review_runs.sqlite"}
 
 def normalize_version_suffix(version: str | None) -> str:
     if not version:
-        return datetime.now().strftime("%Y%m%d")
+        version = DEFAULT_VERSION
     suffix = version.strip()
     if suffix.startswith("LegalFactReview_"):
         suffix = suffix.removeprefix("LegalFactReview_")
@@ -34,7 +34,7 @@ def normalize_version_suffix(version: str | None) -> str:
     return f"{suffix}_windows_portable"
 
 
-def build_release_zip(version: str | None = None, dist_root: str | Path = DIST_ROOT) -> Path:
+def build_release_zip(version: str | None = DEFAULT_VERSION, dist_root: str | Path = DIST_ROOT) -> Path:
     dist_root = Path(dist_root)
     package_dir = build_portable(dist_root)
     suffix = normalize_version_suffix(version)
@@ -73,7 +73,7 @@ def _should_exclude(path: Path) -> bool:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build Windows portable release ZIP.")
-    parser.add_argument("--version", help="Release version, for example v0.4.0-rc1")
+    parser.add_argument("--version", default=DEFAULT_VERSION, help="Release version, for example v0.5.0")
     parser.add_argument("--dist-root", default=str(DIST_ROOT), help="Output directory")
     args = parser.parse_args()
     archive = build_release_zip(version=args.version, dist_root=args.dist_root)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from datetime import datetime
 from functools import lru_cache
@@ -22,6 +23,11 @@ VALID_RISK_TYPES = {
     "EVIDENCE_REFERENCE_MISSING",
     "AMOUNT_INCONSISTENCY",
     "DATE_LOGIC_WARNING",
+    "SPELLING_VARIATION",
+    "CLAUSE_NUMBERING_ERROR",
+    "CLIENT_PROFILE_MISMATCH",
+    "MISSING_STANDARD_CLAUSE",
+    "TEMPLATE_FIELD_MISMATCH",
 }
 VALID_SEVERITIES = {"low", "medium", "high"}
 FORBIDDEN_ACTION_TERMS = ["系统确认错误", "系统已确认", "确认错误", "法律上必然", "法律上无效", "自动核验通过", "已完成外部核验", "替代律师判断"]
@@ -63,6 +69,13 @@ class FieldConfig(BaseModel):
     default_severity: Literal["low", "medium", "high"] = "medium"
     required_by_default: bool = False
 
+    @field_validator("regex_patterns")
+    @classmethod
+    def regex_patterns_must_compile(cls, value: list[str]) -> list[str]:
+        cleaned = [str(pattern).strip() for pattern in value if str(pattern).strip()]
+        _validate_regex_patterns(cleaned, "field_dictionary.regex_patterns")
+        return cleaned
+
 
 class ReviewRulesConfig(BaseModel):
     config_version: str = "default-v1"
@@ -90,7 +103,9 @@ class ReviewRulesConfig(BaseModel):
     @field_validator("placeholder_patterns")
     @classmethod
     def clean_placeholders(cls, value: list[str]) -> list[str]:
-        return [str(item).strip() for item in value if str(item).strip()]
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        _validate_regex_patterns(cleaned, "placeholder_patterns")
+        return cleaned
 
     @model_validator(mode="after")
     def merge_legacy_severity(self):
@@ -161,6 +176,11 @@ def default_config() -> ReviewRulesConfig:
             "AMOUNT_INCONSISTENCY": "high",
             "DATE_LOGIC_WARNING": "medium",
             "POSSIBLY_OUTDATED": "low",
+            "SPELLING_VARIATION": "medium",
+            "CLAUSE_NUMBERING_ERROR": "medium",
+            "CLIENT_PROFILE_MISMATCH": "high",
+            "MISSING_STANDARD_CLAUSE": "high",
+            "TEMPLATE_FIELD_MISMATCH": "medium",
         },
         external_review_sources=DEFAULT_EXTERNAL_REVIEW_SOURCES,
         document_profiles=_default_document_profiles(),
@@ -249,6 +269,14 @@ def _read_config_file(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("配置文件根节点必须是对象")
     return data
+
+
+def _validate_regex_patterns(patterns: list[str], label: str) -> None:
+    for pattern in patterns:
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"{label} contains invalid regex {pattern!r}: {exc}") from exc
 
 
 def _legacy_rule_key(key: str) -> str:

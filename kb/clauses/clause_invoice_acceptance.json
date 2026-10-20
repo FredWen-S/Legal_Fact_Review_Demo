@@ -1,0 +1,8 @@
+{
+  "id": "clause-invoice-acceptance",
+  "title": "验收与开票条款",
+  "summary": "Describes acceptance criteria and invoice issuance sequence.",
+  "body": "乙方完成交付后，甲方应在约定期限内验收确认，验收通过后由乙方开具对应发票。",
+  "keywords": ["验收", "交付", "开票", "确认"],
+  "presence_keywords": ["验收", "交付", "开票"]
+}

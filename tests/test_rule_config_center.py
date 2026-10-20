@@ -20,7 +20,7 @@ from app.config.rule_config_service import import_rules_with_history
 from app.models.schemas import BaseInfoItem, EvidenceItem, TextChunk
 from app.review_engine import review_document, review_single_document
 from app.storage.sqlite_store import get_review_run_detail, list_rule_config_history, save_review_run
-from scripts.generate_test_files import TEST_CASES_DIR, generate_test_files
+from scripts.generate_test_files import generate_test_files
 
 
 def test_review_rules_config_schema_validates_defaults():
@@ -50,6 +50,26 @@ def test_invalid_severity_rejected():
         assert "severity" in str(exc) or "critical" in str(exc)
     else:
         raise AssertionError("invalid severity should fail")
+
+
+def test_invalid_regex_patterns_are_rejected():
+    data = default_config().model_dump(mode="json")
+    data["placeholder_patterns"] = ["("]
+    try:
+        validate_config_data(data)
+    except Exception as exc:
+        assert "invalid regex" in str(exc)
+    else:
+        raise AssertionError("invalid placeholder regex should fail")
+
+    data = default_config().model_dump(mode="json")
+    data["field_dictionary"]["amount"]["regex_patterns"] = ["["]
+    try:
+        validate_config_data(data)
+    except Exception as exc:
+        assert "invalid regex" in str(exc)
+    else:
+        raise AssertionError("invalid field regex should fail")
 
 
 def test_unsafe_suggested_action_rejected():
@@ -152,11 +172,12 @@ def test_restore_default_rules_records_history(tmp_path: Path):
 
 
 def test_rule_config_history_and_review_run_metadata(tmp_path: Path):
-    generate_test_files()
+    test_cases_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=test_cases_dir)
     db_path = tmp_path / "reviews.sqlite"
     target = tmp_path / "review_rules.yml"
     target.write_text(export_config(default_config()), encoding="utf-8")
-    source = TEST_CASES_DIR / "case_09_custom_rules_profile" / "custom_review_rules.yml"
+    source = test_cases_dir / "case_09_custom_rules_profile" / "custom_review_rules.yml"
 
     config = import_rules_with_history(source, target_path=target, db_path=db_path, change_note="case09")
     history = list_rule_config_history(path=db_path)
@@ -295,9 +316,10 @@ def test_disable_risk_and_severity_mapping_and_placeholder_patterns():
     assert any(finding.risk_type == "PLACEHOLDER_REMAINING" for finding in placeholder_findings)
 
 
-def test_case_09_custom_rules_can_run():
-    generate_test_files()
-    config_path = TEST_CASES_DIR / "case_09_custom_rules_profile" / "custom_review_rules.yml"
+def test_case_09_custom_rules_can_run(tmp_path: Path):
+    test_cases_dir = tmp_path / "test_cases"
+    generate_test_files(output_dir=test_cases_dir)
+    config_path = test_cases_dir / "case_09_custom_rules_profile" / "custom_review_rules.yml"
     config = load_review_config(config_path)
     chunks = [TextChunk(text="其他事项：【请律师确认】", location="段落1")]
     findings = review_single_document(chunks, config=config)

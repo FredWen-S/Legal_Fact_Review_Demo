@@ -1,1 +1,1 @@
-"""Workflow orchestration helpers for case workspaces and batch review."""
+"""Workflow orchestration helpers for single, batch, and case review paths."""

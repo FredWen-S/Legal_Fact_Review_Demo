@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from uuid import uuid4
 
 from openpyxl import load_workbook
 
@@ -55,23 +56,29 @@ def test_manual_review_record_can_store_confirmed_value():
     assert record.review_status == "需修改"
 
 
-def test_sqlite_saves_and_reads_manual_review_records(tmp_path: Path):
-    db_path = tmp_path / "reviews.sqlite"
-    records = default_manual_records("review-1", [_field()])
-    updated = records[0].model_copy(
-        update={
-            "confirmed_value": "110101199001019999",
-            "review_status": "需修改",
-            "review_source": "身份证件",
-            "reviewer_note": "编号需人工确认",
-            "reviewed_at": datetime(2026, 6, 12, 10, 0, 0),
-        }
-    )
-    save_manual_review_records([updated], db_path)
-    loaded = fetch_manual_review_records("review-1", db_path)
-    assert len(loaded) == 1
-    assert loaded[0].confirmed_value == "110101199001019999"
-    assert loaded[0].review_source == "身份证件"
+def test_sqlite_saves_and_reads_manual_review_records():
+    db_dir = Path("tmp")
+    db_dir.mkdir(exist_ok=True)
+    db_path = db_dir / f"reviews_{uuid4().hex}.sqlite"
+    try:
+        records = default_manual_records("review-1", [_field()])
+        updated = records[0].model_copy(
+            update={
+                "confirmed_value": "110101199001019999",
+                "review_status": "需修改",
+                "review_source": "身份证件",
+                "reviewer_note": "编号需人工确认",
+                "reviewed_at": datetime(2026, 6, 12, 10, 0, 0),
+            }
+        )
+        save_manual_review_records([updated], db_path)
+        loaded = fetch_manual_review_records("review-1", db_path)
+        assert len(loaded) == 1
+        assert loaded[0].confirmed_value == "110101199001019999"
+        assert loaded[0].review_source == "身份证件"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
 
 
 def test_excel_report_contains_manual_review_sheet():
@@ -87,7 +94,7 @@ def test_excel_report_contains_manual_review_sheet():
         reviewed_at=datetime(2026, 6, 12, 10, 0, 0),
     )
     workbook = load_workbook(BytesIO(build_excel_report([], [_field()], [record])))
-    assert "人工复核记录" in workbook.sheetnames
+    assert "Manual Review" in workbook.sheetnames
 
 
 def test_html_report_contains_manual_review_section():

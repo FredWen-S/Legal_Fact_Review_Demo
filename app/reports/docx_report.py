@@ -8,11 +8,21 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
-from app.models.schemas import ExtractedReviewField, ManualReviewRecord, ReviewFinding
+from app.models.schemas import (
+    ExtractedReviewField,
+    KnowledgeContext,
+    ManualReviewRecord,
+    ReviewFinding,
+    StructuredExtractionResult,
+)
+from app.privacy.policy import PrivacyPolicy, default_privacy_policy
+from app.privacy.redaction import build_privacy_summary, redact_text
 from app.reports.excel_report import (
     external_fields_to_dataframe,
     findings_to_dataframe,
+    knowledge_context_to_dataframe,
     manual_records_to_dataframe,
+    structured_extraction_to_dataframe,
 )
 from app.utils import mask_sensitive
 
@@ -30,7 +40,11 @@ def build_docx_report(
     config_version: str | None = None,
     document_profile: str | None = None,
     config_updated_at: str | None = None,
+    structured_extraction: StructuredExtractionResult | None = None,
+    knowledge_context: KnowledgeContext | None = None,
+    privacy_policy: PrivacyPolicy | None = None,
 ) -> bytes:
+    policy = privacy_policy or default_privacy_policy()
     generated_at = generated_at or datetime.now()
     external_fields = external_fields or []
     manual_records = manual_records or []
@@ -64,17 +78,24 @@ def build_docx_report(
     document.add_heading("免责声明", level=1)
     document.add_paragraph(DISCLAIMER)
 
+    if policy.include_privacy_summary_in_exports:
+        document.add_heading("Privacy Summary", level=1)
+        _add_key_value_table(document, list(build_privacy_summary(policy).items()))
+
+    document.add_heading("AI / RAG Context", level=1)
+    _add_ai_context(document, structured_extraction, knowledge_context, policy)
+
     document.add_heading("复核发现汇总", level=1)
-    _add_dataframe_table(document, findings_to_dataframe(findings), empty_text="暂无复核发现")
+    _add_dataframe_table(document, findings_to_dataframe(findings, policy), empty_text="暂无复核发现")
 
     document.add_heading("待外部复核字段清单", level=1)
-    _add_dataframe_table(document, external_fields_to_dataframe(external_fields), empty_text="暂无待外部复核字段")
+    _add_dataframe_table(document, external_fields_to_dataframe(external_fields, policy), empty_text="暂无待外部复核字段")
 
     document.add_heading("人工复核记录", level=1)
-    _add_dataframe_table(document, manual_records_to_dataframe(manual_records), empty_text="暂无人工复核记录")
+    _add_dataframe_table(document, manual_records_to_dataframe(manual_records, policy), empty_text="暂无人工复核记录")
 
     document.add_heading("高风险优先处理清单", level=1)
-    high_df = findings_to_dataframe([finding for finding in findings if finding.severity == "high"])
+    high_df = findings_to_dataframe([finding for finding in findings if finding.severity == "high"], policy)
     _add_dataframe_table(document, high_df, empty_text="暂无高风险复核发现")
 
     document.add_heading("需修改字段清单", level=1)
@@ -83,10 +104,10 @@ def build_docx_report(
         [
             {
                 "字段类型": record.field_type,
-                "原提取值": mask_sensitive(record.extracted_value, record.field_type),
-                "人工确认值": mask_sensitive(record.confirmed_value, record.field_type),
+                "原提取值": _report_value(mask_sensitive(record.extracted_value, record.field_type), policy),
+                "人工确认值": _report_value(mask_sensitive(record.confirmed_value, record.field_type), policy),
                 "出现位置": record.source_location,
-                "复核备注": record.reviewer_note,
+                "复核备注": _report_value(record.reviewer_note, policy),
             }
             for record in modify_records
         ],
@@ -117,6 +138,40 @@ def _add_key_value_table(document: Document, rows: list[tuple[str, str]]) -> Non
         cells[1].text = value
 
 
+def _add_ai_context(
+    document: Document,
+    structured_extraction: StructuredExtractionResult | None,
+    knowledge_context: KnowledgeContext | None,
+    privacy_policy: PrivacyPolicy,
+) -> None:
+    if structured_extraction is None:
+        document.add_paragraph("Structured extraction context is not available.")
+    else:
+        _add_key_value_table(
+            document,
+            [
+                ("Extraction Mode", structured_extraction.mode),
+                ("Extraction Model", structured_extraction.model_name or "not available"),
+                ("Entity Count", str(len(structured_extraction.entities))),
+                ("Fallback Reason", structured_extraction.fallback_reason or ""),
+            ],
+        )
+        _add_dataframe_table(
+            document,
+            structured_extraction_to_dataframe(structured_extraction, privacy_policy).head(20),
+            empty_text="No structured entities are available.",
+        )
+
+    if knowledge_context is None:
+        document.add_paragraph("Retrieved knowledge context is not available.")
+    else:
+        _add_dataframe_table(
+            document,
+            knowledge_context_to_dataframe(knowledge_context, privacy_policy).head(20),
+            empty_text="No retrieved knowledge matches are available.",
+        )
+
+
 def _add_dataframe_table(document: Document, df: pd.DataFrame, empty_text: str) -> None:
     if df.empty:
         document.add_paragraph(empty_text)
@@ -131,3 +186,9 @@ def _add_dataframe_table(document: Document, df: pd.DataFrame, empty_text: str) 
         for index, column in enumerate(df.columns):
             value = row[column]
             cells[index].text = "" if pd.isna(value) else str(value)
+
+
+def _report_value(value: str | None, privacy_policy: PrivacyPolicy) -> str | None:
+    if value is None or not privacy_policy.redact_report_sensitive_fields:
+        return value
+    return redact_text(str(value), privacy_policy)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,24 +26,37 @@ def main() -> int:
     print(f"Python version: {python.version}")
     print(f"Python executable: {python.executable}")
 
-    tmp_root = ROOT / "tmp"
-    tmp_root.mkdir(exist_ok=True)
-    pytest_temp = tmp_root / "pytest-verify"
-    if pytest_temp.exists():
-        shutil.rmtree(pytest_temp)
-    stages = [
-        Stage("pytest", [*python.command, "-m", "pytest", "tests", "-q", "--basetemp", str(pytest_temp), "-p", "no:cacheprovider"]),
-        Stage("acceptance_check", [*python.command, str(ROOT / "scripts" / "acceptance_check.py")]),
-        Stage("build_desktop_release", [*python.command, str(ROOT / "scripts" / "build_desktop_release.py")]),
-    ]
+    with tempfile.TemporaryDirectory(prefix="LegalFactReview_pytest_verify_") as tmpdir:
+        pytest_temp = Path(tmpdir) / "pytest"
+        if pytest_temp.exists():
+            shutil.rmtree(pytest_temp)
+        stages = [
+            Stage(
+                "pytest",
+                [
+                    *python.command,
+                    "-m",
+                    "pytest",
+                    "tests",
+                    "-q",
+                    "--basetemp",
+                    str(pytest_temp),
+                    "-p",
+                    "no:cacheprovider",
+                    "--ignore=tmp",
+                ],
+            ),
+            Stage("acceptance_check", [*python.command, str(ROOT / "scripts" / "acceptance_check.py")]),
+            Stage("build_desktop_release", [*python.command, str(ROOT / "scripts" / "build_desktop_release.py")]),
+        ]
 
-    for stage in stages:
-        print(f"[RUN] {stage.name}: {' '.join(stage.command)}")
-        completed = subprocess.run(stage.command, cwd=ROOT, check=False)
-        if completed.returncode != 0:
-            print(f"[FAIL] {stage.name}: exit code {completed.returncode}")
-            return completed.returncode
-        print(f"[OK] {stage.name}")
+        for stage in stages:
+            print(f"[RUN] {stage.name}: {' '.join(stage.command)}")
+            completed = subprocess.run(stage.command, cwd=ROOT, check=False)
+            if completed.returncode != 0:
+                print(f"[FAIL] {stage.name}: exit code {completed.returncode}")
+                return completed.returncode
+            print(f"[OK] {stage.name}")
 
     print("Release verification passed.")
     return 0

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tauri::{AppHandle, Manager};
 
 const NO_SUPPORTED_PYTHON_MESSAGE: &str =
     "未找到受支持的 Python 版本。请安装 Python 3.10-3.12，推荐 Python 3.12。";
@@ -26,29 +27,29 @@ struct UiResult {
 }
 
 #[tauri::command]
-fn service_status() -> Result<CommandResult, String> {
-    run_service(&["status"])
+fn service_status(app: AppHandle) -> Result<CommandResult, String> {
+    run_service(&app, &["status"])
 }
 
 #[tauri::command]
-fn service_start() -> Result<CommandResult, String> {
-    run_service(&["start"])
+fn service_start(app: AppHandle) -> Result<CommandResult, String> {
+    run_service(&app, &["start"])
 }
 
 #[tauri::command]
-fn service_stop() -> Result<CommandResult, String> {
-    run_service(&["stop"])
+fn service_stop(app: AppHandle) -> Result<CommandResult, String> {
+    run_service(&app, &["stop"])
 }
 
 #[tauri::command]
-fn service_logs(lines: Option<u32>) -> Result<CommandResult, String> {
+fn service_logs(app: AppHandle, lines: Option<u32>) -> Result<CommandResult, String> {
     let line_count = lines.unwrap_or(120).to_string();
-    run_service(&["logs", "--lines", &line_count])
+    run_service(&app, &["logs", "--lines", &line_count])
 }
 
 #[tauri::command]
-fn open_review_ui() -> Result<UiResult, String> {
-    let status = run_service(&["status"])?;
+fn open_review_ui(app: AppHandle) -> Result<UiResult, String> {
+    let status = run_service(&app, &["status"])?;
     let url = match (status.status.as_str(), status.url.as_deref()) {
         ("running", Some(url)) => url,
         _ => return Err("请先启动服务".to_string()),
@@ -61,32 +62,32 @@ fn open_review_ui() -> Result<UiResult, String> {
 }
 
 #[tauri::command]
-fn open_data_dir() -> Result<UiResult, String> {
-    open_project_dir("data", "data 目录")
+fn open_data_dir(app: AppHandle) -> Result<UiResult, String> {
+    open_project_dir(&app, "data", "data 目录")
 }
 
 #[tauri::command]
-fn open_exports_dir() -> Result<UiResult, String> {
-    open_project_dir("exports", "exports 目录")
+fn open_exports_dir(app: AppHandle) -> Result<UiResult, String> {
+    open_project_dir(&app, "exports", "exports 目录")
 }
 
 #[tauri::command]
-fn open_logs_dir() -> Result<UiResult, String> {
-    open_project_dir("logs", "logs 目录")
+fn open_logs_dir(app: AppHandle) -> Result<UiResult, String> {
+    open_project_dir(&app, "logs", "logs 目录")
 }
 
-fn run_service(args: &[&str]) -> Result<CommandResult, String> {
-    let root = project_root()?;
+fn run_service(app: &AppHandle, args: &[&str]) -> Result<CommandResult, String> {
+    let root = project_root(app)?;
     let script = root.join("scripts").join("desktop_service.py");
     if !script.exists() {
         return Err("缺少 scripts/desktop_service.py，请确认桌面发布包完整。".to_string());
     }
 
     let mut launch_errors: Vec<String> = Vec::new();
-    for candidate in python_command_candidates() {
-        let mut command = Command::new(candidate.program);
+    for candidate in python_command_candidates(app, &root) {
+        let mut command = Command::new(&candidate.program);
         command
-            .args(candidate.args)
+            .args(&candidate.args)
             .arg(&script)
             .args(args)
             .arg("--root")
@@ -150,8 +151,8 @@ fn parse_service_output(success: bool, stdout: &str, stderr: &str) -> Result<Com
     }
 }
 
-fn open_project_dir(name: &str, label: &str) -> Result<UiResult, String> {
-    let path = project_root()?.join(name);
+fn open_project_dir(app: &AppHandle, name: &str, label: &str) -> Result<UiResult, String> {
+    let path = project_root(app)?.join(name);
     std::fs::create_dir_all(&path).map_err(|err| format!("无法创建{label}：{err}"))?;
     open_path_or_url(&path)?;
     Ok(UiResult {
@@ -160,7 +161,12 @@ fn open_project_dir(name: &str, label: &str) -> Result<UiResult, String> {
     })
 }
 
-fn project_root() -> Result<PathBuf, String> {
+fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(path) = app.path().resolve("LegalFactReview", tauri::path::BaseDirectory::Resource) {
+        if path.join("scripts").join("desktop_service.py").exists() {
+            return Ok(path);
+        }
+    }
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()
@@ -169,62 +175,82 @@ fn project_root() -> Result<PathBuf, String> {
         .ok_or_else(|| "无法定位项目根目录。".to_string())
 }
 
-#[derive(Clone, Copy)]
-struct PythonCommand<'a> {
-    program: &'a str,
-    args: &'a [&'a str],
+#[derive(Clone)]
+struct PythonCommand {
+    program: String,
+    args: Vec<String>,
 }
 
-impl<'a> PythonCommand<'a> {
+impl PythonCommand {
     fn display(&self) -> String {
         if self.args.is_empty() {
-            self.program.to_string()
+            self.program.clone()
         } else {
             format!("{} {}", self.program, self.args.join(" "))
         }
     }
 }
 
-fn python_command_candidates() -> Vec<PythonCommand<'static>> {
-    if cfg!(windows) {
-        vec![
-            PythonCommand {
-                program: "py",
-                args: &["-3.12"],
-            },
-            PythonCommand {
-                program: "py",
-                args: &["-3.11"],
-            },
-            PythonCommand {
-                program: "py",
-                args: &["-3.10"],
-            },
-            PythonCommand {
-                program: "python",
-                args: &[],
-            },
-        ]
-    } else {
-        vec![
-            PythonCommand {
-                program: "python3.12",
-                args: &[],
-            },
-            PythonCommand {
-                program: "python3.11",
-                args: &[],
-            },
-            PythonCommand {
-                program: "python3.10",
-                args: &[],
-            },
-            PythonCommand {
-                program: "python3",
-                args: &[],
-            },
-        ]
+fn python_command_candidates(app: &AppHandle, root: &Path) -> Vec<PythonCommand> {
+    let mut candidates = Vec::new();
+    for path in bundled_python_candidates(app, root) {
+        if path.exists() {
+            candidates.push(PythonCommand {
+                program: path.display().to_string(),
+                args: vec![],
+            });
+        }
     }
+    if cfg!(windows) {
+        candidates.extend([
+            PythonCommand {
+                program: "py".to_string(),
+                args: vec!["-3.12".to_string()],
+            },
+            PythonCommand {
+                program: "py".to_string(),
+                args: vec!["-3.11".to_string()],
+            },
+            PythonCommand {
+                program: "py".to_string(),
+                args: vec!["-3.10".to_string()],
+            },
+            PythonCommand {
+                program: "python".to_string(),
+                args: vec![],
+            },
+        ]);
+    } else {
+        candidates.extend([
+            PythonCommand {
+                program: "python3.12".to_string(),
+                args: vec![],
+            },
+            PythonCommand {
+                program: "python3.11".to_string(),
+                args: vec![],
+            },
+            PythonCommand {
+                program: "python3.10".to_string(),
+                args: vec![],
+            },
+            PythonCommand {
+                program: "python3".to_string(),
+                args: vec![],
+            },
+        ]);
+    }
+    candidates
+}
+
+fn bundled_python_candidates(app: &AppHandle, root: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(path) = app.path().resolve("python/python.exe", tauri::path::BaseDirectory::Resource) {
+        paths.push(path);
+    }
+    paths.push(root.join("python").join("python.exe"));
+    paths.push(root.parent().unwrap_or(root).join("python").join("python.exe"));
+    paths
 }
 
 fn open_path_or_url<T: AsRef<std::ffi::OsStr>>(target: T) -> Result<(), String> {

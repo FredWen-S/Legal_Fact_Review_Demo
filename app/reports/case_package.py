@@ -135,6 +135,8 @@ def build_case_review_package_zip(case_id: str, db_path: str = "data/review_runs
                 detail.manual_records,
                 review_id=detail.review_id,
                 mode_label=detail.mode_label,
+                structured_extraction=detail.structured_extraction,
+                knowledge_context=detail.knowledge_context,
             )
             with ZipFile(BytesIO(single_package)) as single_zip:
                 for name in single_zip.namelist():

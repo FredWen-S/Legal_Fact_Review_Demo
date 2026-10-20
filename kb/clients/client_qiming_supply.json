@@ -1,0 +1,13 @@
+{
+  "id": "client-qiming-supply",
+  "title": "杭州启明供应链管理有限公司",
+  "legal_name": "杭州启明供应链管理有限公司",
+  "aliases": ["启明供应链", "杭州启明供应链"],
+  "credit_code": "91330100MA2L000021",
+  "legal_representative": "周亦安",
+  "registered_address": "杭州市滨江区江南大道266号5层",
+  "industry": "供应链与物流协同",
+  "preferred_contract_prefixes": ["SC-2024-HZ", "LOGI-HZ-"],
+  "keywords": ["物流", "仓储", "履约", "结算"],
+  "summary": "Synthetic supply-chain client profile for retrieval and comparison demos."
+}

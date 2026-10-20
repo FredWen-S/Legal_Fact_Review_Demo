@@ -8,7 +8,7 @@ from openpyxl import Workbook
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "demo_cases" / "files"
-DEMO_CASE_VERSION = "demo-cases-v2"
+DEMO_CASE_VERSION = "demo-cases-v3"
 VERSION_FILE = OUTPUT_DIR / ".version"
 
 
@@ -24,8 +24,8 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             [
                 "民事起诉状",
                 "案号：（2026）沪0115民初60001号",
-                "原告：上海星河科技股份有限公司，统一社会信用代码：91310000MA1K000001。",
-                "法定代表人：张明远。住所地：上海市浦东新区星港路88号12层。",
+                "原告：上海星河科技股份有限公司，统一社会信用代码：91310115MA1RXH0026。",
+                "法定代表人：沈牧舟。住所地：上海市浦东新区星港路88号12层。",
                 "被告：陈思齐。",
                 "地址：上海市徐汇区青桥路12号。",
                 "管辖法院：上海市浦东新区人民法院。",
@@ -41,9 +41,9 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             ],
             base_rows=[
                 ("当事人名称", "上海星河科技股份有限公司", "2026-06-01", "synthetic"),
-                ("法定代表人", "张明远", "2026-06-01", "synthetic"),
+                ("法定代表人", "沈牧舟", "2026-06-01", "synthetic"),
                 ("地址", "上海市浦东新区星港路88号12层", "2026-06-01", "synthetic"),
-                ("统一社会信用代码", "91310000MA1K000001", "2026-06-01", "synthetic"),
+                ("统一社会信用代码", "91310115MA1RXH0026", "2026-06-01", "synthetic"),
                 ("案号", "（2026）沪0115民初60001号", "2026-06-01", "synthetic"),
             ],
             evidence_rows=[
@@ -60,7 +60,7 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             "missing_required_fields.docx",
             [
                 "合同审查记录",
-                "甲方：上海星河科技股份有限公司，统一社会信用代码：91310000MA1K000001。",
+                "甲方：上海星河科技股份有限公司，统一社会信用代码：91310115MA1RXH0026。",
                 "乙方：杭州青岚贸易有限公司。",
                 "签署日期：2026年2月10日。",
                 "合同金额：人民币32O,OOO元。",
@@ -68,9 +68,9 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             ],
             base_rows=[
                 ("当事人名称", "上海星河科技股份有限公司", "2026-06-01", "synthetic"),
-                ("法定代表人", "张明远", "2026-06-01", "synthetic"),
+                ("法定代表人", "沈牧舟", "2026-06-01", "synthetic"),
                 ("地址", "上海市浦东新区星港路88号12层", "2026-06-01", "synthetic"),
-                ("统一社会信用代码", "91310000MA1K000001", "2026-06-01", "synthetic"),
+                ("统一社会信用代码", "91310115MA1RXH0026", "2026-06-01", "synthetic"),
                 ("合同编号", "HT-2024-SH-001", "2026-06-01", "synthetic"),
             ],
             evidence_rows=[
@@ -86,7 +86,7 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             [
                 "民事起诉状",
                 "案号：（2026）沪0115民初60002号",
-                "原告：上海澄川贸易有限公司，统一社会信用代码：91310000MA1K000001。",
+                "原告：上海澄川贸易有限公司，统一社会信用代码：91310115MA1RXH0026。",
                 "法定代表人：刘远航。住所地：上海市浦东新区澄川路18号。",
                 "被告：杭州青岚贸易有限公司。",
                 "管辖法院：上海市浦东新区人民法院。",
@@ -99,7 +99,7 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
                 ("当事人名称", "上海澄川贸易有限公司", "2026-06-01", "synthetic"),
                 ("法定代表人", "刘远航", "2026-06-01", "synthetic"),
                 ("地址", "上海市浦东新区澄川路18号", "2026-06-01", "synthetic"),
-                ("统一社会信用代码", "91310000MA1K000001", "2026-06-01", "synthetic"),
+                ("统一社会信用代码", "91310115MA1RXH0026", "2026-06-01", "synthetic"),
                 ("案号", "（2026）沪0115民初60002号", "2026-06-01", "synthetic"),
             ],
             evidence_rows=[
@@ -115,7 +115,7 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             "missing_standard_clause.docx",
             [
                 "合同审查记录",
-                "甲方：上海星河科技股份有限公司，统一社会信用代码：91310000MA1K000001。",
+                "甲方：上海星河科技股份有限公司，统一社会信用代码：91310115MA1RXH0026。",
                 "乙方：深圳远川供应链有限公司。",
                 "合同编号：HT-2024-SH-003。",
                 "合同金额：人民币430,000元。",
@@ -136,8 +136,8 @@ def generate_demo_case_files(output_dir: str | Path = OUTPUT_DIR) -> list[Path]:
             [
                 "律师函",
                 "致：杭州青岚贸易有限公司",
-                "委托人：上海星河科技股份有限公司，统一社会信用代码：91310000MA1K000001。",
-                "法定代表人：张明远。地址：上海市浦东新区星港路88号12层。",
+                "委托人：上海星河科技股份有限公司，统一社会信用代码：91310115MA1RXH0026。",
+                "法定代表人：沈牧舟。地址：上海市浦东新区星港路88号12层。",
                 "请贵方就合同编号 HT-2024-SH-004 项下人民币88,000元款项于2026年6月30日前反馈。",
                 "联系邮箱：demo-contact@example.com；联系电话：13812345678。",
                 "本函仅为 synthetic demo，不构成法律意见。",

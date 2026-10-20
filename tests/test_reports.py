@@ -126,6 +126,7 @@ def test_excel_report_generation():
 def test_html_report_generation():
     html = build_html_report([_finding()], [_external_field()], [_manual_record()])
     assert "LLM + RAG Legal Document Review Report" in html
+    assert "不构成法律意见" in html
     assert "Manual Review Notes / 人工复核记录" in html
     assert "Review Workbench / 待外部复核字段" in html
     assert "Structured Extraction / 结构化抽取" in html

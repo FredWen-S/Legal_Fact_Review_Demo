@@ -23,7 +23,8 @@ from app.reports.excel_report import (
 DISCLAIMER = (
     "This demo is for legal-document review assistance only. "
     "All issues are review suggestions, not legal conclusions. "
-    "All knowledge-base records in this project are synthetic."
+    "All knowledge-base records in this project are synthetic. "
+    "本报告仅用于辅助人工复核，所有发现均为建议人工复核的线索，不构成法律意见，最终判断由人工完成。"
 )
 
 
@@ -107,7 +108,7 @@ def build_html_report(
   <p class="muted">Retrieval uses only synthetic knowledge-base records stored in this project.</p>
   {knowledge_df.to_html(index=False, escape=True)}
 
-  <h2>Review Workbench / 待外部复核字段</h2>
+  <h2>Review Workbench / 待外部复核字段清单</h2>
   {workbench_df.to_html(index=False, escape=True)}
 
   <h2>Manual Review Notes / 人工复核记录</h2>

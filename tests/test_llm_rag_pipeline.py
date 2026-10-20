@@ -28,10 +28,10 @@ class _FakeResponse:
 def _rag_demo_chunks() -> list[TextChunk]:
     return [
         TextChunk(
-            text="甲方：上海星何科技股份有限公司，统一社会信用代码：91310000MA1K000001。",
+            text="甲方：上海星何科技股份有限公司，统一社会信用代码：91310115MA1RXH0026。",
             location="段落1",
         ),
-        TextChunk(text="法定代表人：张明远。注册地址：上海市浦东新区星港路88号12层。", location="段落2"),
+        TextChunk(text="法定代表人：沈牧舟。注册地址：上海市浦东新区星港路88号12层。", location="段落2"),
         TextChunk(text="合同编号：HT-2024-SH-009。", location="段落3"),
         TextChunk(text="第一条 服务内容", location="段落4"),
         TextChunk(text="第三条 付款安排", location="段落5"),
@@ -49,8 +49,8 @@ def test_document_parsing_sample_docx_returns_chunks():
 def test_mock_structured_extraction_extracts_required_entities():
     extraction = extract_structured_entities(_rag_demo_chunks(), force_llm=False)
     assert extraction.mode == "mock"
-    assert "91310000MA1K000001" in extraction.values("credit_code")
-    assert "张明远" in extraction.values("legal_representative")
+    assert "91310115MA1RXH0026" in extraction.values("credit_code")
+    assert "沈牧舟" in extraction.values("legal_representative")
     assert "HT-2024-SH-009" in extraction.values("contract_id")
 
 
@@ -69,8 +69,8 @@ def test_valid_llm_json_passes_schema_validation(monkeypatch):
     llm_payload = {
         "parties": [{"value": "上海星何科技股份有限公司", "role": "甲方"}],
         "company_names": [{"value": "上海星何科技股份有限公司"}],
-        "credit_codes": [{"value": "91310000MA1K000001"}],
-        "legal_representatives": [{"value": "张明远"}],
+        "credit_codes": [{"value": "91310115MA1RXH0026"}],
+        "legal_representatives": [{"value": "沈牧舟"}],
         "registered_addresses": [{"value": "上海市浦东新区星港路88号12层"}],
         "dates": [],
         "amounts": [],
@@ -86,7 +86,7 @@ def test_valid_llm_json_passes_schema_validation(monkeypatch):
 
     assert extraction.mode == "llm"
     assert extraction.fallback_reason is None
-    assert "91310000MA1K000001" in extraction.values("credit_code")
+    assert "91310115MA1RXH0026" in extraction.values("credit_code")
 
 
 def test_malformed_llm_json_falls_back_with_reason(monkeypatch):

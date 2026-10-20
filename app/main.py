@@ -265,6 +265,11 @@ def _render_review_result() -> None:
     else:
         filtered_findings = _filter_findings(findings)
         st.subheader("复核表格")
+        llm_explained = sum(1 for item in findings if item.explanation_source == "llm")
+        if llm_explained:
+            st.caption(f"风险说明：{llm_explained}/{len(findings)} 条由 LLM 生成，其余为规则模板说明；均为提示性说明，需人工复核。")
+        else:
+            st.caption("风险说明：未配置 LLM API key 或调用失败，当前为规则模板说明；配置后将由 LLM 生成。")
         if filtered_findings:
             st.dataframe(findings_to_dataframe(filtered_findings), use_container_width=True, hide_index=True)
         else:

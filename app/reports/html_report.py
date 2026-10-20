@@ -52,6 +52,7 @@ def build_html_report(
     high = sum(1 for item in findings if item.severity == "high")
     medium = sum(1 for item in findings if item.severity == "medium")
     low = sum(1 for item in findings if item.severity == "low")
+    llm_explained = sum(1 for item in findings if item.explanation_source == "llm")
 
     return f"""<!doctype html>
 <html lang="en">
@@ -88,7 +89,8 @@ def build_html_report(
      <strong>Config Version:</strong> {html.escape(config_version or "default")}<br>
      <strong>Config Updated At:</strong> {html.escape(config_updated_at or "")}<br>
      <strong>Extraction Mode:</strong> {html.escape(structured_extraction.mode if structured_extraction else "n/a")}<br>
-     <strong>Extraction Model:</strong> {html.escape(structured_extraction.model_name or "n/a") if structured_extraction else "n/a"}</p>
+     <strong>Extraction Model:</strong> {html.escape(structured_extraction.model_name or "n/a") if structured_extraction else "n/a"}<br>
+     <strong>Risk Explanations:</strong> {llm_explained} by LLM / {len(findings) - llm_explained} by rule template</p>
 
   <div class="meta">
     <div class="card"><div class="label">Issues</div><div class="value">{len(findings)}</div></div>

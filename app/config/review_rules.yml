@@ -16,6 +16,9 @@ enabled_risk_types:
   - CLIENT_PROFILE_MISMATCH
   - MISSING_STANDARD_CLAUSE
   - TEMPLATE_FIELD_MISMATCH
+  - STATUTE_REPEALED
+  - STATUTE_ARTICLE_OUT_OF_RANGE
+  - STATUTE_UNVERIFIED
 
 critical_fields:
   - 当事人名称
@@ -45,6 +48,9 @@ severity_mapping:
   CLIENT_PROFILE_MISMATCH: high
   MISSING_STANDARD_CLAUSE: high
   TEMPLATE_FIELD_MISMATCH: medium
+  STATUTE_REPEALED: high
+  STATUTE_ARTICLE_OUT_OF_RANGE: high
+  STATUTE_UNVERIFIED: low
 
 external_review_sources:
   company_name:

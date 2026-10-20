@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from urllib import error
 
-from app.extractors import llm_extractor
+from app.llm import client as llm_client
 from app.extractors.llm_extractor import extract_structured_entities
 from app.models.schemas import TextChunk
 from app.parsers.docx_parser import parse_docx
@@ -80,7 +80,7 @@ def test_valid_llm_json_passes_schema_validation(monkeypatch):
     def fake_urlopen(_request, timeout):
         return _FakeResponse({"choices": [{"message": {"content": json.dumps(llm_payload, ensure_ascii=False)}}]})
 
-    monkeypatch.setattr(llm_extractor.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(llm_client.request, "urlopen", fake_urlopen)
 
     extraction = extract_structured_entities(_rag_demo_chunks(), force_llm=True)
 
@@ -95,7 +95,7 @@ def test_malformed_llm_json_falls_back_with_reason(monkeypatch):
     def fake_urlopen(_request, timeout):
         return _FakeResponse({"choices": [{"message": {"content": "{not-json"}}]})
 
-    monkeypatch.setattr(llm_extractor.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(llm_client.request, "urlopen", fake_urlopen)
 
     extraction = extract_structured_entities(_rag_demo_chunks(), force_llm=True)
 
@@ -110,7 +110,7 @@ def test_llm_schema_validation_failure_falls_back_with_reason(monkeypatch):
     def fake_urlopen(_request, timeout):
         return _FakeResponse({"choices": [{"message": {"content": json.dumps({"parties": []})}}]})
 
-    monkeypatch.setattr(llm_extractor.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(llm_client.request, "urlopen", fake_urlopen)
 
     extraction = extract_structured_entities(_rag_demo_chunks(), force_llm=True)
 
@@ -125,7 +125,7 @@ def test_llm_api_failure_and_timeout_fallback_reason(monkeypatch):
     def fail_urlopen(_request, timeout):
         raise error.URLError("network down")
 
-    monkeypatch.setattr(llm_extractor.request, "urlopen", fail_urlopen)
+    monkeypatch.setattr(llm_client.request, "urlopen", fail_urlopen)
     failure = extract_structured_entities(_rag_demo_chunks(), force_llm=True)
     assert failure.mode == "mock"
     assert failure.fallback_reason and "api_error" in failure.fallback_reason
@@ -133,7 +133,7 @@ def test_llm_api_failure_and_timeout_fallback_reason(monkeypatch):
     def timeout_urlopen(_request, timeout):
         raise TimeoutError("timed out")
 
-    monkeypatch.setattr(llm_extractor.request, "urlopen", timeout_urlopen)
+    monkeypatch.setattr(llm_client.request, "urlopen", timeout_urlopen)
     timeout = extract_structured_entities(_rag_demo_chunks(), force_llm=True)
     assert timeout.mode == "mock"
     assert timeout.fallback_reason and "api_timeout" in timeout.fallback_reason

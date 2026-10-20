@@ -28,6 +28,9 @@ VALID_RISK_TYPES = {
     "CLIENT_PROFILE_MISMATCH",
     "MISSING_STANDARD_CLAUSE",
     "TEMPLATE_FIELD_MISMATCH",
+    "STATUTE_REPEALED",
+    "STATUTE_ARTICLE_OUT_OF_RANGE",
+    "STATUTE_UNVERIFIED",
 }
 VALID_SEVERITIES = {"low", "medium", "high"}
 FORBIDDEN_ACTION_TERMS = ["系统确认错误", "系统已确认", "确认错误", "法律上必然", "法律上无效", "自动核验通过", "已完成外部核验", "替代律师判断"]
@@ -181,6 +184,9 @@ def default_config() -> ReviewRulesConfig:
             "CLIENT_PROFILE_MISMATCH": "high",
             "MISSING_STANDARD_CLAUSE": "high",
             "TEMPLATE_FIELD_MISMATCH": "medium",
+            "STATUTE_REPEALED": "high",
+            "STATUTE_ARTICLE_OUT_OF_RANGE": "high",
+            "STATUTE_UNVERIFIED": "low",
         },
         external_review_sources=DEFAULT_EXTERNAL_REVIEW_SOURCES,
         document_profiles=_default_document_profiles(),

@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import json
-import os
 import re
-from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Any
-from urllib import error, request
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.extractors.field_extractor import extract_fields
+from app.extractors.statute_extractor import extract_statute_entities, normalize_statute_citation
+from app.llm.client import LLMSettings, fallback_reason, load_llm_settings, request_json_completion
 from app.models.schemas import ExtractedItem, StructuredEntity, StructuredExtractionResult, TextChunk
 from app.utils import normalize_text
 
@@ -31,15 +28,8 @@ ENTITY_TO_FIELD_NAME = {
     "date": "日期",
     "amount": "金额",
     "contract_id": "合同编号",
+    "statute_reference": "法条引用",
 }
-
-
-@dataclass(frozen=True)
-class _LLMSettings:
-    api_key: str | None
-    base_url: str
-    model: str
-    timeout_seconds: int
 
 
 class _LLMEntityPayload(BaseModel):
@@ -72,18 +62,8 @@ class _LLMExtractionPayload(BaseModel):
     dates: list[_LLMEntityPayload]
     amounts: list[_LLMEntityPayload]
     contract_ids: list[_LLMEntityPayload]
-
-
-class _LLMMessagePayload(BaseModel):
-    content: str
-
-
-class _LLMChoicePayload(BaseModel):
-    message: _LLMMessagePayload
-
-
-class _LLMChatCompletionPayload(BaseModel):
-    choices: list[_LLMChoicePayload] = Field(min_length=1)
+    # Optional so responses from prompts without statute support still validate.
+    statute_references: list[_LLMEntityPayload] = Field(default_factory=list)
 
 
 def extract_structured_entities(
@@ -91,9 +71,9 @@ def extract_structured_entities(
     force_llm: bool | None = None,
 ) -> StructuredExtractionResult:
     try:
-        settings = _load_settings()
+        settings = load_llm_settings()
     except Exception as exc:
-        return _mock_extract_structured_entities(chunks, fallback_reason=_fallback_reason("settings_error", exc))
+        return _mock_extract_structured_entities(chunks, fallback_reason=fallback_reason("settings_error", exc))
 
     llm_available = bool(settings.api_key)
     if not llm_available:
@@ -106,7 +86,7 @@ def extract_structured_entities(
         try:
             return _extract_with_remote_llm(chunks, settings)
         except Exception as exc:
-            return _mock_extract_structured_entities(chunks, fallback_reason=_fallback_reason("llm_fallback", exc))
+            return _mock_extract_structured_entities(chunks, fallback_reason=fallback_reason("llm_fallback", exc))
     return _mock_extract_structured_entities(chunks, fallback_reason="llm_disabled")
 
 
@@ -148,6 +128,7 @@ def _mock_extract_structured_entities(
     entities.extend(_entities_from_regex_items(regex_items, "date", {"日期"}))
     entities.extend(_entities_from_regex_items(regex_items, "amount", {"金额"}))
     entities.extend(_entities_from_regex_items(regex_items, "contract_id", {"合同编号"}))
+    entities.extend(extract_statute_entities(chunks))
 
     for chunk in chunks:
         for match in COMPANY_PATTERN.finditer(chunk.text):
@@ -214,52 +195,17 @@ def _mock_extract_structured_entities(
     )
 
 
-def _extract_with_remote_llm(chunks: list[TextChunk], settings: _LLMSettings) -> StructuredExtractionResult:
-    payload = {
-        "model": settings.model,
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You extract structured contract and legal-document entities. "
-                    "Return strict JSON with keys: parties, company_names, credit_codes, "
-                    "legal_representatives, registered_addresses, dates, amounts, contract_ids. "
-                    "Each list item should be an object with value and optional role. "
-                    "Do not add commentary."
-                ),
-            },
-            {"role": "user", "content": _build_prompt(chunks)},
-        ],
-    }
-    body = json.dumps(payload).encode("utf-8")
-    api_request = request.Request(
-        url=settings.base_url.rstrip("/") + "/chat/completions",
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.api_key}",
-        },
+def _extract_with_remote_llm(chunks: list[TextChunk], settings: LLMSettings) -> StructuredExtractionResult:
+    system_prompt = (
+        "You extract structured contract and legal-document entities. "
+        "Return strict JSON with keys: parties, company_names, credit_codes, "
+        "legal_representatives, registered_addresses, dates, amounts, contract_ids, statute_references. "
+        "Each list item should be an object with value and optional role. "
+        "statute_references lists each cited law article separately, e.g. 《中华人民共和国民法典》第五百七十七条; "
+        "do not include references to contract clauses. "
+        "Do not add commentary."
     )
-
-    try:
-        with request.urlopen(api_request, timeout=settings.timeout_seconds) as response:
-            raw = response.read().decode("utf-8")
-    except TimeoutError as exc:  # pragma: no cover - depends on external network
-        raise RuntimeError("api_timeout") from exc
-    except error.URLError as exc:  # pragma: no cover - depends on external network
-        raise RuntimeError("api_error") from exc
-
-    data = _parse_json_object(raw, "chat_completion_response")
-    try:
-        completion = _LLMChatCompletionPayload.model_validate(data)
-    except ValidationError as exc:
-        raise RuntimeError("chat_completion_schema_validation_failure") from exc
-
-    message = completion.choices[0].message.content
-    parsed = _parse_json_object(message, "llm_content")
+    parsed, message = request_json_completion(settings, system_prompt, _build_prompt(chunks))
     try:
         payload = _LLMExtractionPayload.model_validate(parsed)
     except ValidationError as exc:
@@ -293,6 +239,7 @@ def _entities_from_llm_payload(payload: _LLMExtractionPayload, chunks: list[Text
         "dates": "date",
         "amounts": "amount",
         "contract_ids": "contract_id",
+        "statute_references": "statute_reference",
     }
     entities: list[StructuredEntity] = []
     for key, entity_type in mapping.items():
@@ -375,6 +322,8 @@ def _entities_from_regex_items(
 def _normalized_value(entity_type: str, value: str) -> str:
     if entity_type == "amount":
         return _normalize_amount(value)
+    if entity_type == "statute_reference":
+        return normalize_statute_citation(value) or value.strip()
     return value.strip()
 
 
@@ -408,29 +357,3 @@ def _dedupe_entities(entities: list[StructuredEntity]) -> list[StructuredEntity]
         seen.add(key)
         deduped.append(entity)
     return deduped
-
-
-def _load_settings() -> _LLMSettings:
-    api_key = os.getenv("LEGAL_LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-    base_url = os.getenv("LEGAL_LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
-    model = os.getenv("LEGAL_LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
-    timeout_seconds = int(os.getenv("LEGAL_LLM_TIMEOUT_SECONDS", "30"))
-    if timeout_seconds <= 0:
-        raise ValueError("LEGAL_LLM_TIMEOUT_SECONDS must be positive")
-    return _LLMSettings(api_key=api_key, base_url=base_url, model=model, timeout_seconds=timeout_seconds)
-
-
-def _parse_json_object(raw: str, label: str) -> dict[str, Any]:
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"malformed_{label}_json") from exc
-    if not isinstance(parsed, dict):
-        raise RuntimeError(f"{label}_json_must_be_object")
-    return parsed
-
-
-def _fallback_reason(code: str, exc: Exception) -> str:
-    cause = exc.__cause__ or exc
-    message = str(cause).strip() or cause.__class__.__name__
-    return f"{code}: {exc}: {cause.__class__.__name__}: {message}"[:240]

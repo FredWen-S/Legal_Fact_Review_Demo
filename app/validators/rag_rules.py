@@ -91,11 +91,10 @@ def check_knowledge_alignment(
 
     matched_templates = [template for template in knowledge_context.templates if template.match_status == "matched"]
     matched_clauses = [clause for clause in knowledge_context.clauses if clause.match_status == "matched"]
-    required_clause_ids = {
-        clause_id
-        for template in matched_templates
-        for clause_id in template.metadata.get("required_clause_ids", [])
-    }
+    # Only the best-matching template reflects the document type; lower-ranked templates
+    # (e.g. a service contract for a complaint) must not impose their required clauses.
+    top_template = max(matched_templates, key=lambda template: template.score, default=None)
+    required_clause_ids = set(top_template.metadata.get("required_clause_ids", [])) if top_template else set()
     for clause in matched_clauses:
         if clause.doc_id not in required_clause_ids:
             continue

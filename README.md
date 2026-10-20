@@ -205,6 +205,8 @@ $env:OPENAI_MODEL="gpt-4o-mini"
 
 ## How To Run
 
+Requirements: Python 3.10-3.12 (Python 3.12 recommended). Python 3.9 and earlier are not supported because the code uses `X | None` type syntax at runtime, and Python 3.13 is not part of the supported delivery range.
+
 ### 1. Install dependencies
 
 ```powershell
